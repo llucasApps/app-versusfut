@@ -6,6 +6,7 @@ import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, C
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { useViewMode } from '@/hooks/useViewMode';
 
 type Tab = 'resumo' | 'elenco' | 'taticas' | 'fotos' | 'videos';
 
@@ -33,6 +34,7 @@ const categorias = ['Finalização', 'Tática', 'Preparação Física', 'Passe',
 export default function TeamDetailPage() {
   const params = useParams();
   const team = myTeams.find(t => t.id === params.id);
+  const { isOwnerMode } = useViewMode();
   const [activeTab, setActiveTab] = useState<Tab>('resumo');
   const [fotos, setFotos] = useState<FotoTime[]>([]);
   const [videos, setVideos] = useState<VideoTutorial[]>([]);

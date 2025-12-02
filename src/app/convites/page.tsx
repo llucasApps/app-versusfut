@@ -4,6 +4,7 @@ import Navigation from '@/components/Navigation';
 import { invites, matches } from '@/lib/mock-data';
 import { Mail, CheckCircle, XCircle, Clock, Calendar, MapPin, Send } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 export default function ConvitesPage() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'declined'>('all');
@@ -221,9 +222,9 @@ export default function ConvitesPage() {
                       <CheckCircle className="w-5 h-5" />
                       Desafio Aceito
                     </button>
-                    <button className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-4 rounded-xl transition-all">
+                    <Link href={`/convites/${invite.matchId}`} className="bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-4 rounded-xl transition-all">
                       Ver Detalhes
-                    </button>
+                    </Link>
                   </div>
                 )}
 

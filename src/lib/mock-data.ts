@@ -41,6 +41,7 @@ export interface Match {
     home: number;
     away: number;
   };
+  messages?: ChatMessage[];
 }
 
 export interface Invite {
@@ -50,6 +51,13 @@ export interface Invite {
   matchId: string;
   status: 'pending' | 'accepted' | 'declined';
   date: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: string;
+  message: string;
+  timestamp: string;
 }
 
 // Meus Times
@@ -180,6 +188,26 @@ export const matches: Match[] = [
     time: '19:00',
     location: 'Campo do Bairro',
     status: 'scheduled',
+    messages: [
+      {
+        id: 'msg1',
+        sender: 'Real Bairro FC',
+        message: 'Podemos começar às 16h em vez de 15h?',
+        timestamp: new Date('2024-02-14T10:30:00').toISOString()
+      },
+      {
+        id: 'msg2',
+        sender: 'Pelada da Praça',
+        message: 'Fechado, 16h!',
+        timestamp: new Date('2024-02-14T11:15:00').toISOString()
+      },
+      {
+        id: 'msg3',
+        sender: 'Real Bairro FC',
+        message: 'Perfeito! Nos vemos lá 👍',
+        timestamp: new Date('2024-02-14T11:20:00').toISOString()
+      }
+    ]
   },
   {
     id: 'm2',
@@ -248,3 +276,115 @@ export const invites: Invite[] = [
     date: '2024-02-20',
   },
 ];
+
+// Fotos fake para Real Bairro FC (id: '1')
+export const initialPhotos = [
+  {
+    id: 'foto1',
+    timeId: '1',
+    url: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&h=600&fit=crop',
+    titulo: 'Foto do elenco 2024',
+    data: '2024-01-15',
+    descricao: 'Time completo reunido para foto oficial da temporada 2024'
+  },
+  {
+    id: 'foto2',
+    timeId: '1',
+    url: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&h=600&fit=crop',
+    titulo: 'Amistoso contra Pelada da Praça',
+    data: '2024-01-20',
+    descricao: 'Jogo amistoso preparatório para o campeonato'
+  },
+  {
+    id: 'foto3',
+    timeId: '1',
+    url: 'https://images.unsplash.com/photo-1560272564-c83b66b1ad12?w=800&h=600&fit=crop',
+    titulo: 'Equipe campeã do torneio local',
+    data: '2023-12-10',
+    descricao: 'Comemoração do título do torneio de fim de ano'
+  },
+  {
+    id: 'foto4',
+    timeId: '1',
+    url: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?w=800&h=600&fit=crop',
+    titulo: 'Treino tático',
+    data: '2024-02-01',
+    descricao: 'Sessão de treino focada em táticas defensivas'
+  }
+];
+
+// Vídeos fake para Real Bairro FC (id: '1')
+export const initialVideos = [
+  {
+    id: 'video1',
+    timeId: '1',
+    titulo: 'Técnicas de Finalização - Parte 1',
+    descricao: 'Aprenda as melhores técnicas para finalizar com precisão e potência',
+    urlEmbed: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    categoria: 'Finalização',
+    duracao: '12:45'
+  },
+  {
+    id: 'video2',
+    timeId: '1',
+    titulo: 'Tática 4-4-2: Posicionamento',
+    descricao: 'Como se posicionar corretamente na formação 4-4-2',
+    urlEmbed: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    categoria: 'Tática',
+    duracao: '15:30'
+  },
+  {
+    id: 'video3',
+    timeId: '1',
+    titulo: 'Preparação Física para Futebol',
+    descricao: 'Exercícios essenciais para melhorar seu condicionamento físico',
+    urlEmbed: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    categoria: 'Preparação Física',
+    duracao: '18:20'
+  },
+  {
+    id: 'video4',
+    timeId: '1',
+    titulo: 'Passes Curtos e Longos',
+    descricao: 'Domine a arte do passe com estas técnicas fundamentais',
+    urlEmbed: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    categoria: 'Passe',
+    duracao: '10:15'
+  },
+  {
+    id: 'video5',
+    timeId: '1',
+    titulo: 'Defesa: Marcação Individual',
+    descricao: 'Aprenda a marcar seu adversário de forma efetiva',
+    urlEmbed: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    categoria: 'Defesa',
+    duracao: '14:00'
+  }
+];
+
+// Função para inicializar dados fake no localStorage
+export function initializeFakeData() {
+  if (typeof window === 'undefined') return;
+
+  // Inicializar fotos para Real Bairro FC
+  const existingPhotos = localStorage.getItem('fotos_1');
+  if (!existingPhotos) {
+    localStorage.setItem('fotos_1', JSON.stringify(initialPhotos));
+  }
+
+  // Inicializar vídeos para Real Bairro FC
+  const existingVideos = localStorage.getItem('videos_1');
+  if (!existingVideos) {
+    localStorage.setItem('videos_1', JSON.stringify(initialVideos));
+  }
+
+  // Inicializar configurações
+  const existingConfig = localStorage.getItem('userConfig');
+  if (!existingConfig) {
+    localStorage.setItem('userConfig', JSON.stringify({
+      displayName: 'Rafael Jr – Presidente Real Cohab',
+      darkMode: true,
+      notifications: true
+    }));
+  }
+}
