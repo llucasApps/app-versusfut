@@ -2,17 +2,196 @@
 
 import Navigation from '@/components/Navigation';
 import { myTeams } from '@/lib/mock-data';
-import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard } from 'lucide-react';
+import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-type Tab = 'resumo' | 'elenco' | 'taticas';
+type Tab = 'resumo' | 'elenco' | 'taticas' | 'fotos' | 'videos';
+
+interface FotoTime {
+  id: string;
+  timeId: string;
+  url: string;
+  titulo: string;
+  data: string;
+  descricao?: string;
+}
+
+interface VideoTutorial {
+  id: string;
+  timeId: string;
+  titulo: string;
+  descricao: string;
+  urlEmbed: string;
+  categoria: string;
+  duracao: string;
+}
+
+const categorias = ['Finalização', 'Tática', 'Preparação Física', 'Passe', 'Defesa', 'Drible'];
 
 export default function TeamDetailPage() {
   const params = useParams();
   const team = myTeams.find(t => t.id === params.id);
   const [activeTab, setActiveTab] = useState<Tab>('resumo');
+  const [fotos, setFotos] = useState<FotoTime[]>([]);
+  const [videos, setVideos] = useState<VideoTutorial[]>([]);
+  const [showAddFotoModal, setShowAddFotoModal] = useState(false);
+  const [showFotoModal, setShowFotoModal] = useState(false);
+  const [selectedFoto, setSelectedFoto] = useState<FotoTime | null>(null);
+  const [showAddVideoModal, setShowAddVideoModal] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<VideoTutorial | null>(null);
+  const [editingVideo, setEditingVideo] = useState<VideoTutorial | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategoria, setFilterCategoria] = useState('');
+  const [newFoto, setNewFoto] = useState({
+    titulo: '',
+    url: '',
+    descricao: '',
+    data: new Date().toISOString().split('T')[0]
+  });
+  const [videoFormData, setVideoFormData] = useState({
+    titulo: '',
+    descricao: '',
+    urlEmbed: '',
+    categoria: 'Finalização',
+    duracao: ''
+  });
+
+  // Carregar fotos do localStorage
+  useEffect(() => {
+    if (team) {
+      const storedFotos = localStorage.getItem(`fotos_${team.id}`);
+      if (storedFotos) {
+        setFotos(JSON.parse(storedFotos));
+      }
+    }
+  }, [team]);
+
+  // Carregar vídeos do localStorage
+  useEffect(() => {
+    if (team) {
+      const storedVideos = localStorage.getItem(`videos_${team.id}`);
+      if (storedVideos) {
+        setVideos(JSON.parse(storedVideos));
+      }
+    }
+  }, [team]);
+
+  // Salvar fotos no localStorage
+  const saveFotos = (updatedFotos: FotoTime[]) => {
+    if (team) {
+      localStorage.setItem(`fotos_${team.id}`, JSON.stringify(updatedFotos));
+      setFotos(updatedFotos);
+    }
+  };
+
+  // Salvar vídeos no localStorage
+  const saveVideos = (updatedVideos: VideoTutorial[]) => {
+    if (team) {
+      localStorage.setItem(`videos_${team.id}`, JSON.stringify(updatedVideos));
+      setVideos(updatedVideos);
+    }
+  };
+
+  const handleAddFoto = () => {
+    if (!team || !newFoto.titulo || !newFoto.url) return;
+
+    const foto: FotoTime = {
+      id: Date.now().toString(),
+      timeId: team.id,
+      titulo: newFoto.titulo,
+      url: newFoto.url,
+      data: newFoto.data,
+      descricao: newFoto.descricao
+    };
+
+    saveFotos([...fotos, foto]);
+    setShowAddFotoModal(false);
+    setNewFoto({
+      titulo: '',
+      url: '',
+      descricao: '',
+      data: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const handleRemoveFoto = (id: string) => {
+    saveFotos(fotos.filter(f => f.id !== id));
+    setShowFotoModal(false);
+  };
+
+  const handleViewFoto = (foto: FotoTime) => {
+    setSelectedFoto(foto);
+    setShowFotoModal(true);
+  };
+
+  const handleAddVideo = () => {
+    if (!team || !videoFormData.titulo || !videoFormData.urlEmbed) return;
+
+    const newVideo: VideoTutorial = {
+      id: Date.now().toString(),
+      timeId: team.id,
+      ...videoFormData
+    };
+
+    saveVideos([...videos, newVideo]);
+    resetVideoForm();
+  };
+
+  const handleEditVideo = () => {
+    if (!editingVideo || !videoFormData.titulo || !videoFormData.urlEmbed) return;
+
+    const updatedVideos = videos.map(v => 
+      v.id === editingVideo.id ? { ...editingVideo, ...videoFormData } : v
+    );
+
+    saveVideos(updatedVideos);
+    resetVideoForm();
+  };
+
+  const handleRemoveVideo = (id: string) => {
+    saveVideos(videos.filter(v => v.id !== id));
+    setShowVideoModal(false);
+  };
+
+  const openEditVideoModal = (video: VideoTutorial) => {
+    setEditingVideo(video);
+    setVideoFormData({
+      titulo: video.titulo,
+      descricao: video.descricao,
+      urlEmbed: video.urlEmbed,
+      categoria: video.categoria,
+      duracao: video.duracao
+    });
+    setShowAddVideoModal(true);
+  };
+
+  const resetVideoForm = () => {
+    setVideoFormData({
+      titulo: '',
+      descricao: '',
+      urlEmbed: '',
+      categoria: 'Finalização',
+      duracao: ''
+    });
+    setEditingVideo(null);
+    setShowAddVideoModal(false);
+  };
+
+  const openVideoModal = (video: VideoTutorial) => {
+    setSelectedVideo(video);
+    setShowVideoModal(true);
+  };
+
+  // Filtrar vídeos
+  const filteredVideos = videos.filter(video => {
+    const matchesSearch = video.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         video.descricao.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategoria = !filterCategoria || video.categoria === filterCategoria;
+    return matchesSearch && matchesCategoria;
+  });
 
   if (!team) {
     return (
@@ -86,10 +265,10 @@ export default function TeamDetailPage() {
         </div>
 
         {/* Tabs Navigation */}
-        <div className="flex gap-2 mb-8 border-b border-white/10">
+        <div className="flex gap-2 mb-8 border-b border-white/10 overflow-x-auto">
           <button
             onClick={() => setActiveTab('resumo')}
-            className={`px-6 py-3 font-medium transition-all ${
+            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
               activeTab === 'resumo'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
@@ -99,7 +278,7 @@ export default function TeamDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('elenco')}
-            className={`px-6 py-3 font-medium transition-all ${
+            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
               activeTab === 'elenco'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
@@ -109,13 +288,33 @@ export default function TeamDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('taticas')}
-            className={`px-6 py-3 font-medium transition-all ${
+            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
               activeTab === 'taticas'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
             }`}
           >
             Táticas
+          </button>
+          <button
+            onClick={() => setActiveTab('fotos')}
+            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+              activeTab === 'fotos'
+                ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            Fotos
+          </button>
+          <button
+            onClick={() => setActiveTab('videos')}
+            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+              activeTab === 'videos'
+                ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            Vídeos
           </button>
         </div>
 
@@ -252,6 +451,28 @@ export default function TeamDetailPage() {
                     </div>
                   </button>
 
+                  <button 
+                    onClick={() => setActiveTab('fotos')}
+                    className="w-full flex items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all group"
+                  >
+                    <ImageIcon className="w-5 h-5 text-white/60 group-hover:text-[#FF6B00]" />
+                    <div className="flex-1 text-left">
+                      <div className="text-white font-medium">Ver Galeria</div>
+                      <div className="text-white/60 text-sm">{fotos.length} fotos</div>
+                    </div>
+                  </button>
+
+                  <button 
+                    onClick={() => setActiveTab('videos')}
+                    className="w-full flex items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all group"
+                  >
+                    <Play className="w-5 h-5 text-white/60 group-hover:text-[#FF6B00]" />
+                    <div className="flex-1 text-left">
+                      <div className="text-white font-medium">Ver Vídeos</div>
+                      <div className="text-white/60 text-sm">{videos.length} vídeos</div>
+                    </div>
+                  </button>
+
                   <Link href="/agenda" className="flex items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all group">
                     <Calendar className="w-5 h-5 text-white/60 group-hover:text-[#FF6B00]" />
                     <div className="flex-1">
@@ -359,7 +580,500 @@ export default function TeamDetailPage() {
             </Link>
           </div>
         )}
+
+        {activeTab === 'fotos' && (
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Galeria de Fotos – {team.name}
+              </h2>
+              <button
+                onClick={() => setShowAddFotoModal(true)}
+                className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-2 px-4 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2"
+              >
+                <ImageIcon className="w-5 h-5" />
+                Adicionar Foto
+              </button>
+            </div>
+
+            {fotos.length === 0 ? (
+              <div className="text-center py-16">
+                <ImageIcon className="w-20 h-20 text-white/20 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">Nenhuma foto cadastrada</h3>
+                <p className="text-white/60 mb-6">Comece adicionando a primeira foto do seu time!</p>
+                <button
+                  onClick={() => setShowAddFotoModal(true)}
+                  className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)]"
+                >
+                  Adicionar Primeira Foto
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {fotos.map((foto) => (
+                  <div key={foto.id} className="bg-white/5 rounded-xl overflow-hidden hover:bg-white/10 transition-all group">
+                    <div className="aspect-video bg-white/10 relative overflow-hidden">
+                      <img 
+                        src={foto.url} 
+                        alt={foto.titulo}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400&h=300&fit=crop';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => handleViewFoto(foto)}
+                          className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white p-3 rounded-lg transition-all"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleRemoveFoto(foto.id)}
+                          className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="text-white font-bold mb-1">{foto.titulo}</h3>
+                      <p className="text-white/60 text-sm mb-2">
+                        {new Date(foto.data).toLocaleDateString('pt-BR')}
+                      </p>
+                      {foto.descricao && (
+                        <p className="text-white/40 text-sm line-clamp-2">{foto.descricao}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'videos' && (
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Vídeos Tutoriais – {team.name}
+              </h2>
+              <button
+                onClick={() => setShowAddVideoModal(true)}
+                className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-2 px-4 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Adicionar Vídeo
+              </button>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex-1 relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por título..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                />
+              </div>
+
+              <select
+                value={filterCategoria}
+                onChange={(e) => setFilterCategoria(e.target.value)}
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+              >
+                <option value="">Todas as categorias</option>
+                {categorias.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Videos Grid */}
+            {filteredVideos.length === 0 ? (
+              <div className="text-center py-16">
+                <Play className="w-20 h-20 text-white/20 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {searchTerm || filterCategoria ? 'Nenhum vídeo encontrado' : 'Nenhum vídeo cadastrado'}
+                </h3>
+                <p className="text-white/60 mb-6">
+                  {searchTerm || filterCategoria 
+                    ? 'Tente ajustar os filtros de busca' 
+                    : 'Comece adicionando vídeos tutoriais para este time'}
+                </p>
+                {!searchTerm && !filterCategoria && (
+                  <button
+                    onClick={() => setShowAddVideoModal(true)}
+                    className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)]"
+                  >
+                    Adicionar Primeiro Vídeo
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredVideos.map((video) => (
+                  <div key={video.id} className="bg-white/5 rounded-xl overflow-hidden hover:bg-white/10 transition-all group">
+                    <div className="aspect-video bg-white/10 relative overflow-hidden">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <Play className="w-16 h-16 text-white/80" />
+                      </div>
+                      <div className="absolute top-3 right-3 bg-black/80 px-3 py-1 rounded-lg flex items-center gap-1">
+                        <Clock className="w-4 h-4 text-white/60" />
+                        <span className="text-white/80 text-sm font-medium">{video.duracao}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-5">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="bg-[#FF6B00]/20 text-[#FF6B00] px-3 py-1 rounded-lg text-xs font-bold">
+                          {video.categoria}
+                        </span>
+                      </div>
+
+                      <h3 className="text-white font-bold text-lg mb-2 line-clamp-1">
+                        {video.titulo}
+                      </h3>
+                      <p className="text-white/60 text-sm mb-4 line-clamp-2">
+                        {video.descricao}
+                      </p>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openVideoModal(video)}
+                          className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+                        >
+                          <Play className="w-4 h-4" />
+                          Assistir
+                        </button>
+                        <button
+                          onClick={() => openEditVideoModal(video)}
+                          className="bg-white/5 hover:bg-white/10 text-white p-2 rounded-lg transition-all"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleRemoveVideo(video.id)}
+                          className="bg-red-500/20 hover:bg-red-500/30 text-red-500 p-2 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
+
+      {/* Modal Adicionar Foto */}
+      {showAddFotoModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Adicionar Foto
+              </h3>
+              <button
+                onClick={() => setShowAddFotoModal(false)}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Título *</label>
+                <input
+                  type="text"
+                  value={newFoto.titulo}
+                  onChange={(e) => setNewFoto({ ...newFoto, titulo: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  placeholder="Ex: Treino de Finalizações"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">URL da Imagem *</label>
+                <input
+                  type="url"
+                  value={newFoto.url}
+                  onChange={(e) => setNewFoto({ ...newFoto, url: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  placeholder="https://exemplo.com/imagem.jpg"
+                />
+                {newFoto.url && (
+                  <div className="mt-3 aspect-video bg-white/5 rounded-lg overflow-hidden">
+                    <img 
+                      src={newFoto.url} 
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Data</label>
+                <input
+                  type="date"
+                  value={newFoto.data}
+                  onChange={(e) => setNewFoto({ ...newFoto, data: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Descrição (opcional)</label>
+                <textarea
+                  value={newFoto.descricao}
+                  onChange={(e) => setNewFoto({ ...newFoto, descricao: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none resize-none"
+                  rows={3}
+                  placeholder="Adicione uma descrição para a foto..."
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddFotoModal(false)}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddFoto}
+                disabled={!newFoto.titulo || !newFoto.url}
+                className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ver Foto */}
+      {showFotoModal && selectedFoto && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {selectedFoto.titulo}
+              </h3>
+              <button
+                onClick={() => setShowFotoModal(false)}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <img 
+                src={selectedFoto.url} 
+                alt={selectedFoto.titulo}
+                className="w-full rounded-xl"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&h=600&fit=crop';
+                }}
+              />
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center gap-2 text-white/60">
+                <Calendar className="w-5 h-5" />
+                <span>{new Date(selectedFoto.data).toLocaleDateString('pt-BR', { 
+                  day: '2-digit', 
+                  month: 'long', 
+                  year: 'numeric' 
+                })}</span>
+              </div>
+              {selectedFoto.descricao && (
+                <p className="text-white/80">{selectedFoto.descricao}</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowFotoModal(false)}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
+              >
+                Fechar
+              </button>
+              <button
+                onClick={() => handleRemoveFoto(selectedFoto.id)}
+                className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center gap-2"
+              >
+                <Trash2 className="w-5 h-5" />
+                Remover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Adicionar/Editar Vídeo */}
+      {showAddVideoModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {editingVideo ? 'Editar Vídeo Tutorial' : 'Adicionar Vídeo Tutorial'}
+              </h3>
+              <button
+                onClick={resetVideoForm}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Título *</label>
+                <input
+                  type="text"
+                  value={videoFormData.titulo}
+                  onChange={(e) => setVideoFormData({ ...videoFormData, titulo: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  placeholder="Ex: Técnicas de Finalização"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Descrição</label>
+                <textarea
+                  value={videoFormData.descricao}
+                  onChange={(e) => setVideoFormData({ ...videoFormData, descricao: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none resize-none"
+                  rows={3}
+                  placeholder="Descreva o conteúdo do vídeo..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">URL do Vídeo (YouTube) *</label>
+                <input
+                  type="url"
+                  value={videoFormData.urlEmbed}
+                  onChange={(e) => setVideoFormData({ ...videoFormData, urlEmbed: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  placeholder="https://www.youtube.com/embed/..."
+                />
+                <p className="text-white/40 text-sm mt-2">
+                  Use o formato de embed do YouTube (clique em Compartilhar → Incorporar)
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Categoria *</label>
+                  <select
+                    value={videoFormData.categoria}
+                    onChange={(e) => setVideoFormData({ ...videoFormData, categoria: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  >
+                    {categorias.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Duração</label>
+                  <input
+                    type="text"
+                    value={videoFormData.duracao}
+                    onChange={(e) => setVideoFormData({ ...videoFormData, duracao: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                    placeholder="Ex: 10:30"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={resetVideoForm}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={editingVideo ? handleEditVideo : handleAddVideo}
+                disabled={!videoFormData.titulo || !videoFormData.urlEmbed}
+                className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {editingVideo ? 'Salvar Alterações' : 'Adicionar Vídeo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Assistir Vídeo */}
+      {showVideoModal && selectedVideo && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {selectedVideo.titulo}
+                </h3>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="bg-[#FF6B00]/20 text-[#FF6B00] px-3 py-1 rounded-lg font-bold">
+                    {selectedVideo.categoria}
+                  </span>
+                  <span className="text-white/60 flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    {selectedVideo.duracao}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowVideoModal(false)}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="aspect-video bg-black rounded-xl overflow-hidden mb-6">
+              <iframe
+                src={selectedVideo.urlEmbed}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+
+            {selectedVideo.descricao && (
+              <div className="mb-6">
+                <h4 className="text-white font-bold mb-2">Sobre este vídeo</h4>
+                <p className="text-white/80">{selectedVideo.descricao}</p>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowVideoModal(false)}
+              className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
