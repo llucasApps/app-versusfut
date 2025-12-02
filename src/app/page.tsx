@@ -34,45 +34,45 @@ export default function Dashboard() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-12">
-          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-2xl p-5 sm:p-6 hover:border-[#00FF00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.15)] group">
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-2xl p-5 sm:p-6 hover:border-[#FF6B35]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,53,0.15)] group">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-[#00FF00]/10 rounded-xl group-hover:bg-[#00FF00]/20 transition-all">
-                <Users className="w-6 h-6 text-[#00FF00]" />
+              <div className="p-3 bg-[#FF6B35]/10 rounded-xl group-hover:bg-[#FF6B35]/20 transition-all">
+                <Users className="w-6 h-6 text-[#FF6B35]" />
               </div>
-              <TrendingUp className="w-5 h-5 text-[#00FF00]/60" />
+              <TrendingUp className="w-5 h-5 text-[#FF6B35]/60" />
             </div>
             <div className="text-3xl sm:text-4xl font-bold text-white mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{myTeams.length}</div>
             <div className="text-white/60 text-sm">Times Ativos</div>
           </div>
 
-          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-2xl p-5 sm:p-6 hover:border-[#00FF00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.15)] group">
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-2xl p-5 sm:p-6 hover:border-[#FF6B35]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,53,0.15)] group">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-[#00FF00]/10 rounded-xl group-hover:bg-[#00FF00]/20 transition-all">
-                <Trophy className="w-6 h-6 text-[#00FF00]" />
+              <div className="p-3 bg-[#FF6B35]/10 rounded-xl group-hover:bg-[#FF6B35]/20 transition-all">
+                <Trophy className="w-6 h-6 text-[#FF6B35]" />
               </div>
-              <TrendingUp className="w-5 h-5 text-[#00FF00]/60" />
+              <TrendingUp className="w-5 h-5 text-[#FF6B35]/60" />
             </div>
             <div className="text-3xl sm:text-4xl font-bold text-white mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{totalWins}</div>
             <div className="text-white/60 text-sm">Vitórias Totais</div>
           </div>
 
-          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-2xl p-5 sm:p-6 hover:border-[#00FF00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.15)] group">
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-2xl p-5 sm:p-6 hover:border-[#FF6B35]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,53,0.15)] group">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-[#00FF00]/10 rounded-xl group-hover:bg-[#00FF00]/20 transition-all">
-                <Calendar className="w-6 h-6 text-[#00FF00]" />
+              <div className="p-3 bg-[#FF6B35]/10 rounded-xl group-hover:bg-[#FF6B35]/20 transition-all">
+                <Calendar className="w-6 h-6 text-[#FF6B35]" />
               </div>
-              <TrendingUp className="w-5 h-5 text-[#00FF00]/60" />
+              <TrendingUp className="w-5 h-5 text-[#FF6B35]/60" />
             </div>
             <div className="text-3xl sm:text-4xl font-bold text-white mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{totalMatches}</div>
             <div className="text-white/60 text-sm">Partidas Jogadas</div>
           </div>
 
-          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-2xl p-5 sm:p-6 hover:border-[#00FF00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.15)] group">
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-2xl p-5 sm:p-6 hover:border-[#FF6B35]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,53,0.15)] group">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-[#00FF00]/10 rounded-xl group-hover:bg-[#00FF00]/20 transition-all">
-                <TrendingUp className="w-6 h-6 text-[#00FF00]" />
+              <div className="p-3 bg-[#FF6B35]/10 rounded-xl group-hover:bg-[#FF6B35]/20 transition-all">
+                <TrendingUp className="w-6 h-6 text-[#FF6B35]" />
               </div>
-              <TrendingUp className="w-5 h-5 text-[#00FF00]/60" />
+              <TrendingUp className="w-5 h-5 text-[#FF6B35]/60" />
             </div>
             <div className="text-3xl sm:text-4xl font-bold text-white mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{totalGoals}</div>
             <div className="text-white/60 text-sm">Gols Marcados</div>
@@ -84,17 +84,17 @@ export default function Dashboard() {
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl sm:text-3xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>Próximos Jogos</h2>
-              <Link href="/agenda" className="text-[#00FF00] hover:text-[#00FF00]/80 transition-colors flex items-center gap-2 text-sm sm:text-base">
+              <Link href="/agenda" className="text-[#FF6B35] hover:text-[#FF6B35]/80 transition-colors flex items-center gap-2 text-sm sm:text-base">
                 Ver todos <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
 
             <div className="space-y-4">
               {upcomingMatches.map((match) => (
-                <div key={match.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-2xl p-5 sm:p-6 hover:border-[#00FF00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.15)]">
+                <div key={match.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-2xl p-5 sm:p-6 hover:border-[#FF6B35]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,53,0.15)]">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                     <div className="flex items-center gap-3">
-                      <Clock className="w-5 h-5 text-[#00FF00]" />
+                      <Clock className="w-5 h-5 text-[#FF6B35]" />
                       <div>
                         <div className="text-white/60 text-sm">{formatDate(match.date)}</div>
                         <div className="text-white font-medium">{match.time}</div>
@@ -102,7 +102,7 @@ export default function Dashboard() {
                     </div>
                     <div className={`px-3 py-1 rounded-full text-xs font-medium ${
                       match.status === 'confirmed' 
-                        ? 'bg-[#00FF00]/20 text-[#00FF00]' 
+                        ? 'bg-[#FF6B35]/20 text-[#FF6B35]' 
                         : 'bg-white/10 text-white/60'
                     }`}>
                       {match.status === 'confirmed' ? 'Confirmado' : 'Agendado'}
@@ -115,8 +115,8 @@ export default function Dashboard() {
                       <div className="text-white/40 text-xs sm:text-sm">Casa</div>
                     </div>
                     
-                    <div className="px-4 sm:px-6 py-2 bg-[#00FF00]/10 rounded-xl">
-                      <div className="text-[#00FF00] font-bold text-sm sm:text-base">VS</div>
+                    <div className="px-4 sm:px-6 py-2 bg-[#FF6B35]/10 rounded-xl">
+                      <div className="text-[#FF6B35] font-bold text-sm sm:text-base">VS</div>
                     </div>
                     
                     <div className="flex-1 text-center sm:text-right">
@@ -127,7 +127,7 @@ export default function Dashboard() {
 
                   <div className="mt-4 pt-4 border-t border-white/10">
                     <div className="text-white/60 text-sm flex items-center gap-2">
-                      <div className="w-2 h-2 bg-[#00FF00] rounded-full"></div>
+                      <div className="w-2 h-2 bg-[#FF6B35] rounded-full"></div>
                       {match.location}
                     </div>
                   </div>
@@ -142,18 +142,18 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl sm:text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>Convites</h3>
-                <Link href="/convites" className="text-[#00FF00] hover:text-[#00FF00]/80 transition-colors flex items-center gap-2 text-sm">
+                <Link href="/convites" className="text-[#FF6B35] hover:text-[#FF6B35]/80 transition-colors flex items-center gap-2 text-sm">
                   Ver todos <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
 
               <div className="space-y-3">
                 {pendingInvites.map((invite) => (
-                  <div key={invite.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-xl p-4 hover:border-[#00FF00]/40 transition-all duration-300">
+                  <div key={invite.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-xl p-4 hover:border-[#FF6B35]/40 transition-all duration-300">
                     <div className="text-white font-medium mb-2">{invite.from}</div>
                     <div className="text-white/60 text-sm mb-3">Desafio para {formatDate(invite.date)}</div>
                     <div className="flex gap-2">
-                      <button className="flex-1 bg-[#00FF00] hover:bg-[#00FF00]/90 text-black font-medium py-2 px-3 rounded-lg transition-all text-sm">
+                      <button className="flex-1 bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
                         Aceitar
                       </button>
                       <button className="flex-1 bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
@@ -169,14 +169,14 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl sm:text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>Meus Times</h3>
-                <Link href="/times" className="text-[#00FF00] hover:text-[#00FF00]/80 transition-colors flex items-center gap-2 text-sm">
+                <Link href="/times" className="text-[#FF6B35] hover:text-[#FF6B35]/80 transition-colors flex items-center gap-2 text-sm">
                   Ver todos <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
 
               <div className="space-y-3">
                 {myTeams.slice(0, 3).map((team) => (
-                  <Link key={team.id} href={`/times/${team.id}`} className="block bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-xl p-4 hover:border-[#00FF00]/40 transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,255,0,0.1)]">
+                  <Link key={team.id} href={`/times/${team.id}`} className="block bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-xl p-4 hover:border-[#FF6B35]/40 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,107,53,0.1)]">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="text-3xl">{team.logo}</div>
                       <div className="flex-1">
@@ -186,7 +186,7 @@ export default function Dashboard() {
                     </div>
                     <div className="flex gap-4 text-sm">
                       <div>
-                        <div className="text-[#00FF00] font-bold">{team.stats.wins}</div>
+                        <div className="text-[#FF6B35] font-bold">{team.stats.wins}</div>
                         <div className="text-white/40 text-xs">Vitórias</div>
                       </div>
                       <div>

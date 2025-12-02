@@ -35,29 +35,29 @@ export default function BuscarPage() {
               placeholder="Buscar times por nome ou descrição..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-xl py-4 px-12 text-white placeholder:text-white/40 focus:outline-none focus:border-[#00FF00]/40 transition-all"
+              className="w-full bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-xl py-4 px-12 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF6B35]/40 transition-all"
             />
           </div>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-xl p-5">
-            <div className="text-3xl font-bold text-[#00FF00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-xl p-5">
+            <div className="text-3xl font-bold text-[#FF6B35] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
               {opponentTeams.length}
             </div>
             <div className="text-white/60 text-sm">Times Disponíveis</div>
           </div>
           
-          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-xl p-5">
-            <div className="text-3xl font-bold text-[#00FF00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-xl p-5">
+            <div className="text-3xl font-bold text-[#FF6B35] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
               {allTeams.length}
             </div>
             <div className="text-white/60 text-sm">Total de Times</div>
           </div>
           
-          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-xl p-5 col-span-2 sm:col-span-1">
-            <div className="text-3xl font-bold text-[#00FF00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-xl p-5 col-span-2 sm:col-span-1">
+            <div className="text-3xl font-bold text-[#FF6B35] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
               {filteredTeams.length}
             </div>
             <div className="text-white/60 text-sm">Resultados</div>
@@ -71,13 +71,13 @@ export default function BuscarPage() {
             const winRate = totalMatches > 0 ? Math.round((team.stats.wins / totalMatches) * 100) : 0;
             
             return (
-              <div key={team.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-2xl overflow-hidden hover:border-[#00FF00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.15)] group">
+              <div key={team.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-2xl overflow-hidden hover:border-[#FF6B35]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,53,0.15)] group">
                 {/* Header */}
                 <div className="p-6 border-b border-white/10">
                   <div className="flex items-start justify-between mb-4">
                     <div className="text-5xl">{team.logo}</div>
-                    <div className="px-3 py-1 bg-[#00FF00]/10 rounded-full">
-                      <div className="text-[#00FF00] text-sm font-bold">{winRate}% vitórias</div>
+                    <div className="px-3 py-1 bg-[#FF6B35]/10 rounded-full">
+                      <div className="text-[#FF6B35] text-sm font-bold">{winRate}% vitórias</div>
                     </div>
                   </div>
                   
@@ -90,8 +90,8 @@ export default function BuscarPage() {
                 {/* Stats */}
                 <div className="p-6 space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-[#00FF00]/10 rounded-lg">
-                      <Trophy className="w-5 h-5 text-[#00FF00]" />
+                    <div className="p-2 bg-[#FF6B35]/10 rounded-lg">
+                      <Trophy className="w-5 h-5 text-[#FF6B35]" />
                     </div>
                     <div className="flex-1">
                       <div className="text-white/60 text-sm">Vitórias</div>
@@ -100,8 +100,8 @@ export default function BuscarPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-[#00FF00]/10 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-[#00FF00]" />
+                    <div className="p-2 bg-[#FF6B35]/10 rounded-lg">
+                      <TrendingUp className="w-5 h-5 text-[#FF6B35]" />
                     </div>
                     <div className="flex-1">
                       <div className="text-white/60 text-sm">Gols Marcados</div>
@@ -110,8 +110,8 @@ export default function BuscarPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-[#00FF00]/10 rounded-lg">
-                      <Users className="w-5 h-5 text-[#00FF00]" />
+                    <div className="p-2 bg-[#FF6B35]/10 rounded-lg">
+                      <Users className="w-5 h-5 text-[#FF6B35]" />
                     </div>
                     <div className="flex-1">
                       <div className="text-white/60 text-sm">Partidas Jogadas</div>
@@ -127,7 +127,7 @@ export default function BuscarPage() {
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                       <div 
-                        className="bg-gradient-to-r from-[#00FF00] to-[#00CC00] h-full rounded-full transition-all duration-500"
+                        className="bg-gradient-to-r from-[#FF6B35] to-[#FF8C42] h-full rounded-full transition-all duration-500"
                         style={{ width: `${winRate}%` }}
                       />
                     </div>
@@ -136,7 +136,7 @@ export default function BuscarPage() {
 
                 {/* Actions */}
                 <div className="p-6 pt-0 flex gap-3">
-                  <button className="flex-1 bg-[#00FF00] hover:bg-[#00FF00]/90 text-black font-bold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2">
+                  <button className="flex-1 bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2">
                     <Send className="w-4 h-4" />
                     Desafiar
                   </button>
