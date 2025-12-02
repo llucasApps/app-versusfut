@@ -20,7 +20,7 @@ export default function TimesPage() {
             <p className="text-white/60 text-base sm:text-lg">Gerencie seus times e acompanhe o desempenho</p>
           </div>
           
-          <Link href="/times/criar" className="bg-[#00FF00] hover:bg-[#00FF00]/90 text-black font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.3)] flex items-center gap-2 justify-center sm:justify-start">
+          <Link href="/times/criar" className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2 justify-center sm:justify-start">
             <Plus className="w-5 h-5" />
             Criar Time
           </Link>
@@ -33,13 +33,13 @@ export default function TimesPage() {
             const winRate = totalMatches > 0 ? Math.round((team.stats.wins / totalMatches) * 100) : 0;
             
             return (
-              <div key={team.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#00FF00]/20 rounded-2xl overflow-hidden hover:border-[#00FF00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.15)] group">
+              <div key={team.id} className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl overflow-hidden hover:border-[#FF6B00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.15)] group">
                 {/* Header */}
                 <div className="p-6 border-b border-white/10">
                   <div className="flex items-start justify-between mb-4">
                     <div className="text-5xl">{team.logo}</div>
-                    <div className="px-3 py-1 bg-[#00FF00]/10 rounded-full">
-                      <div className="text-[#00FF00] text-sm font-bold">{winRate}% vitórias</div>
+                    <div className="px-3 py-1 bg-[#FF6B00]/10 rounded-full">
+                      <div className="text-[#FF6B00] text-sm font-bold">{winRate}% vitórias</div>
                     </div>
                   </div>
                   
@@ -52,8 +52,8 @@ export default function TimesPage() {
                 {/* Stats */}
                 <div className="p-6 space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-[#00FF00]/10 rounded-lg">
-                      <Users className="w-5 h-5 text-[#00FF00]" />
+                    <div className="p-2 bg-[#FF6B00]/10 rounded-lg">
+                      <Users className="w-5 h-5 text-[#FF6B00]" />
                     </div>
                     <div className="flex-1">
                       <div className="text-white/60 text-sm">Jogadores</div>
@@ -62,8 +62,8 @@ export default function TimesPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-[#00FF00]/10 rounded-lg">
-                      <Trophy className="w-5 h-5 text-[#00FF00]" />
+                    <div className="p-2 bg-[#FF6B00]/10 rounded-lg">
+                      <Trophy className="w-5 h-5 text-[#FF6B00]" />
                     </div>
                     <div className="flex-1">
                       <div className="text-white/60 text-sm">Vitórias</div>
@@ -72,8 +72,8 @@ export default function TimesPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-[#00FF00]/10 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-[#00FF00]" />
+                    <div className="p-2 bg-[#FF6B00]/10 rounded-lg">
+                      <TrendingUp className="w-5 h-5 text-[#FF6B00]" />
                     </div>
                     <div className="flex-1">
                       <div className="text-white/60 text-sm">Gols Marcados</div>
@@ -89,7 +89,7 @@ export default function TimesPage() {
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                       <div 
-                        className="bg-gradient-to-r from-[#00FF00] to-[#00CC00] h-full rounded-full transition-all duration-500"
+                        className="bg-gradient-to-r from-[#FF6B00] to-[#FF8C00] h-full rounded-full transition-all duration-500"
                         style={{ width: `${winRate}%` }}
                       />
                     </div>
@@ -100,7 +100,7 @@ export default function TimesPage() {
                 <div className="p-6 pt-0 flex gap-3">
                   <Link 
                     href={`/times/${team.id}`}
-                    className="flex-1 bg-[#00FF00] hover:bg-[#00FF00]/90 text-black font-bold py-3 px-4 rounded-xl transition-all duration-300 text-center flex items-center justify-center gap-2"
+                    className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 text-center flex items-center justify-center gap-2"
                   >
                     Ver Detalhes
                     <ArrowRight className="w-4 h-4" />
@@ -125,7 +125,7 @@ export default function TimesPage() {
               Nenhum time cadastrado
             </h3>
             <p className="text-white/60 mb-8">Crie seu primeiro time e comece a jogar!</p>
-            <Link href="/times/criar" className="inline-flex items-center gap-2 bg-[#00FF00] hover:bg-[#00FF00]/90 text-black font-bold py-3 px-8 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,255,0,0.3)]">
+            <Link href="/times/criar" className="inline-flex items-center gap-2 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-8 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)]">
               <Plus className="w-5 h-5" />
               Criar Primeiro Time
             </Link>
