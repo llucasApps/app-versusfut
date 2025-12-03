@@ -166,7 +166,7 @@ export default function Dashboard() {
             </div>
 
             {/* Meus Times */}
-            <div>
+            {/* <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl sm:text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>Meus Times</h3>
                 <Link href="/times" className="text-[#FF6B35] hover:text-[#FF6B35]/80 transition-colors flex items-center gap-2 text-sm">
@@ -201,7 +201,7 @@ export default function Dashboard() {
                   </Link>
                 ))}
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </main>

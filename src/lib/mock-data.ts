@@ -146,6 +146,10 @@ export const opponentTeams: Team[] = [
     name: 'Pelada da Praça',
     logo: '🔥',
     description: 'Time tradicional da praça',
+    president: 'Carlos Silva',
+    phone: '(11) 99999-1234',
+    category: 'Adulto',
+    availableForMatch: true,
     isMyTeam: false,
     stats: {
       wins: 10,
@@ -161,6 +165,10 @@ export const opponentTeams: Team[] = [
     name: 'Galera do Sintético',
     logo: '⚡',
     description: 'Especialistas em campo sintético',
+    president: 'Roberto Almeida',
+    phone: '(11) 98888-5678',
+    category: 'Adulto',
+    availableForMatch: true,
     isMyTeam: false,
     stats: {
       wins: 14,
@@ -176,6 +184,10 @@ export const opponentTeams: Team[] = [
     name: 'Amigos FC',
     logo: '🎯',
     description: 'Unidos pelo futebol',
+    president: 'Fernando Costa',
+    phone: '(11) 97777-9012',
+    category: 'Veterano 35+',
+    availableForMatch: false,
     isMyTeam: false,
     stats: {
       wins: 7,
