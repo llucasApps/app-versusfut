@@ -2,7 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import { opponentTeams, allTeams, Team } from '@/lib/mock-data';
-import { Search, User, Phone, Tag, Calendar, X, ChevronLeft, ChevronRight, Clock, MessageSquare, Send, CheckCircle } from 'lucide-react';
+import { Search, User, Phone, Tag, Calendar, X, ChevronLeft, ChevronRight, Clock, MessageSquare, Send, CheckCircle, Users, Image as ImageIcon } from 'lucide-react';
 import { useState } from 'react';
 
 export default function BuscarPage() {
@@ -15,6 +15,28 @@ export default function BuscarPage() {
   const [message, setMessage] = useState('');
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   const [inviteDetails, setInviteDetails] = useState<{team: string; date: string; time: string} | null>(null);
+  const [showTeamPhotoModal, setShowTeamPhotoModal] = useState(false);
+  const [teamPhotoData, setTeamPhotoData] = useState<{name: string; logo: string; photo: string} | null>(null);
+
+  // Fotos de elenco simuladas (em produção viriam do backend)
+  const getTeamPhoto = (teamId: string) => {
+    // Simulando fotos de elenco para cada time
+    const photos: Record<string, string> = {
+      '4': 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
+      '5': 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800&q=80',
+      '6': 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=800&q=80',
+    };
+    return photos[teamId] || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80';
+  };
+
+  const openTeamPhotoModal = (team: Team) => {
+    setTeamPhotoData({
+      name: team.name,
+      logo: team.logo,
+      photo: getTeamPhoto(team.id)
+    });
+    setShowTeamPhotoModal(true);
+  };
 
   // Datas disponíveis simuladas (em produção viriam do backend)
   const getAvailableDates = (teamId: string) => {
@@ -256,11 +278,16 @@ export default function BuscarPage() {
                 <div className="p-6 border-b border-white/10">
                   <div className="flex items-start justify-between mb-4">
                     <div className="text-5xl">{team.logo}</div>
-                    {team.category && (
-                      <div className="px-3 py-1 bg-[#FF6B35]/10 rounded-full">
-                        <div className="text-[#FF6B35] text-sm font-bold">{team.category}</div>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => openTeamPhotoModal(team)}
+                      className="p-2 bg-[#FF6B35]/10 hover:bg-[#FF6B35]/20 rounded-full transition-all group relative"
+                      title="Ver foto do elenco"
+                    >
+                      <Users className="w-5 h-5 text-[#FF6B35]" />
+                      <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                        Ver elenco
+                      </span>
+                    </button>
                   </div>
                   
                   <h3 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
@@ -439,6 +466,47 @@ export default function BuscarPage() {
                 <Send className="w-5 h-5" />
                 Marcar Jogo
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Foto do Elenco */}
+      {showTeamPhotoModal && teamPhotoData && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowTeamPhotoModal(false)}
+        >
+          <div 
+            className="relative max-w-4xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Botão Fechar */}
+            <button
+              onClick={() => setShowTeamPhotoModal(false)}
+              className="absolute -top-12 right-0 p-2 hover:bg-white/10 rounded-lg transition-colors z-10"
+            >
+              <X className="w-6 h-6 text-white" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="text-4xl">{teamPhotoData.logo}</div>
+              <div>
+                <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {teamPhotoData.name}
+                </h3>
+                <p className="text-white/60">Foto do Elenco</p>
+              </div>
+            </div>
+
+            {/* Foto */}
+            <div className="rounded-2xl overflow-hidden border-4 border-[#FF6B35]/30 shadow-[0_0_40px_rgba(255,107,53,0.2)]">
+              <img 
+                src={teamPhotoData.photo} 
+                alt={`Elenco do ${teamPhotoData.name}`}
+                className="w-full h-auto object-cover"
+              />
             </div>
           </div>
         </div>
