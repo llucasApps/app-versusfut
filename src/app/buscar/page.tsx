@@ -2,7 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import { opponentTeams, allTeams, Team } from '@/lib/mock-data';
-import { Search, User, Phone, Tag, Calendar, X, ChevronLeft, ChevronRight, Clock, MessageSquare, Send, CheckCircle, Users, Image as ImageIcon } from 'lucide-react';
+import { Search, User, Phone, Tag, Calendar, X, ChevronLeft, ChevronRight, Clock, MessageSquare, Send, CheckCircle, Users, Image as ImageIcon, MapPin, Filter, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 
 export default function BuscarPage() {
@@ -17,6 +17,26 @@ export default function BuscarPage() {
   const [inviteDetails, setInviteDetails] = useState<{team: string; date: string; time: string} | null>(null);
   const [showTeamPhotoModal, setShowTeamPhotoModal] = useState(false);
   const [teamPhotoData, setTeamPhotoData] = useState<{name: string; logo: string; photo: string} | null>(null);
+  
+  // Estados dos filtros
+  const [filterDate, setFilterDate] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterHasVenue, setFilterHasVenue] = useState<'all' | 'yes' | 'no'>('all');
+  const [filterTeamType, setFilterTeamType] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const categoryOptions = ['Juvenil', 'Adulto', 'Veterano 35+', 'Master 45+'];
+  const teamTypeOptions = ['Campo', 'Society', 'Futsal'];
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterDate('');
+    setFilterCategory('');
+    setFilterHasVenue('all');
+    setFilterTeamType('');
+  };
+
+  const hasActiveFilters = searchTerm || filterDate || filterCategory || filterHasVenue !== 'all' || filterTeamType;
 
   // Fotos de elenco simuladas (em produção viriam do backend)
   const getTeamPhoto = (teamId: string) => {
@@ -214,10 +234,27 @@ export default function BuscarPage() {
     );
   };
   
-  const filteredTeams = opponentTeams.filter(team => 
-    team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    team.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTeams = opponentTeams.filter(team => {
+    // Filtro por nome/descrição
+    const matchesSearch = team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      team.description.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Filtro por categoria
+    const matchesCategory = !filterCategory || team.category === filterCategory;
+    
+    // Filtro por local próprio
+    const matchesVenue = filterHasVenue === 'all' || 
+      (filterHasVenue === 'yes' && team.hasVenue) || 
+      (filterHasVenue === 'no' && !team.hasVenue);
+    
+    // Filtro por tipo de time
+    const matchesTeamType = !filterTeamType || team.teamType === filterTeamType;
+    
+    // Filtro por data disponível
+    const matchesDate = !filterDate || (team.availableDates && team.availableDates.includes(filterDate));
+    
+    return matchesSearch && matchesCategory && matchesVenue && matchesTeamType && matchesDate;
+  });
 
   return (
     <div className="min-h-screen bg-[#0D0D0D]">
@@ -232,18 +269,127 @@ export default function BuscarPage() {
           <p className="text-white/60 text-base sm:text-lg">Encontre adversários e desafie para uma partida</p>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-8">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-            <input
-              type="text"
-              placeholder="Buscar times por nome ou descrição..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-xl py-4 px-12 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF6B35]/40 transition-all"
-            />
+        {/* Search & Filters */}
+        <div className="mb-8 space-y-4">
+          {/* Barra de busca + botão filtros */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+              <input
+                type="text"
+                placeholder="Buscar times por nome ou descrição..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-xl py-4 px-12 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF6B35]/40 transition-all"
+              />
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-4 rounded-xl border transition-all flex items-center gap-2 ${
+                showFilters || hasActiveFilters
+                  ? 'bg-[#FF6B35] border-[#FF6B35] text-white'
+                  : 'bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border-[#FF6B35]/20 text-white/60 hover:border-[#FF6B35]/40'
+              }`}
+            >
+              <Filter className="w-5 h-5" />
+              <span className="hidden sm:inline">Filtros</span>
+              {hasActiveFilters && (
+                <span className="bg-white/20 text-xs px-2 py-0.5 rounded-full">
+                  {[searchTerm, filterDate, filterCategory, filterHasVenue !== 'all', filterTeamType].filter(Boolean).length}
+                </span>
+              )}
+            </button>
           </div>
+
+          {/* Painel de Filtros */}
+          {showFilters && (
+            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B35]/20 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-bold flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-[#FF6B35]" />
+                  Filtros Avançados
+                </h3>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-[#FF6B35] hover:text-[#FF6B35]/80 text-sm flex items-center gap-1 transition-colors"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Filtro por Data */}
+                <div>
+                  <label className="block text-white/60 text-sm mb-2 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Data Disponível
+                  </label>
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#FF6B35]/40 transition-all"
+                  />
+                </div>
+
+                {/* Filtro por Categoria */}
+                <div>
+                  <label className="block text-white/60 text-sm mb-2 flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    Categoria
+                  </label>
+                  <select
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#FF6B35]/40 transition-all"
+                  >
+                    <option value="" className="bg-[#1A1A1A]">Todas</option>
+                    {categoryOptions.map(cat => (
+                      <option key={cat} value={cat} className="bg-[#1A1A1A]">{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Filtro por Local Próprio */}
+                <div>
+                  <label className="block text-white/60 text-sm mb-2 flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    Possui Local
+                  </label>
+                  <select
+                    value={filterHasVenue}
+                    onChange={(e) => setFilterHasVenue(e.target.value as 'all' | 'yes' | 'no')}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#FF6B35]/40 transition-all"
+                  >
+                    <option value="all" className="bg-[#1A1A1A]">Todos</option>
+                    <option value="yes" className="bg-[#1A1A1A]">Sim, possui local</option>
+                    <option value="no" className="bg-[#1A1A1A]">Não possui local</option>
+                  </select>
+                </div>
+
+                {/* Filtro por Tipo de Time */}
+                <div>
+                  <label className="block text-white/60 text-sm mb-2 flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Tipo de Time
+                  </label>
+                  <select
+                    value={filterTeamType}
+                    onChange={(e) => setFilterTeamType(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#FF6B35]/40 transition-all"
+                  >
+                    <option value="" className="bg-[#1A1A1A]">Todos</option>
+                    {teamTypeOptions.map(type => (
+                      <option key={type} value={type} className="bg-[#1A1A1A]">Time de {type}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Stats */}

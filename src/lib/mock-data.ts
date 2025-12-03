@@ -30,6 +30,9 @@ export interface Team {
   phone?: string;
   category?: 'Juvenil' | 'Adulto' | 'Veterano 35+' | 'Master 45+';
   availableForMatch?: boolean;
+  hasVenue?: boolean; // Se possui local próprio para jogar
+  teamType?: 'Campo' | 'Society' | 'Futsal';
+  availableDates?: string[]; // Datas disponíveis para jogar (formato ISO)
   players: Player[];
   stats: {
     wins: number;
@@ -150,6 +153,9 @@ export const opponentTeams: Team[] = [
     phone: '(11) 99999-1234',
     category: 'Adulto',
     availableForMatch: true,
+    hasVenue: true,
+    teamType: 'Campo',
+    availableDates: ['2024-12-10', '2024-12-15', '2024-12-20', '2024-12-25'],
     isMyTeam: false,
     stats: {
       wins: 10,
@@ -169,6 +175,9 @@ export const opponentTeams: Team[] = [
     phone: '(11) 98888-5678',
     category: 'Adulto',
     availableForMatch: true,
+    hasVenue: false,
+    teamType: 'Society',
+    availableDates: ['2024-12-08', '2024-12-12', '2024-12-18', '2024-12-22'],
     isMyTeam: false,
     stats: {
       wins: 14,
@@ -188,6 +197,9 @@ export const opponentTeams: Team[] = [
     phone: '(11) 97777-9012',
     category: 'Veterano 35+',
     availableForMatch: false,
+    hasVenue: true,
+    teamType: 'Futsal',
+    availableDates: [],
     isMyTeam: false,
     stats: {
       wins: 7,
