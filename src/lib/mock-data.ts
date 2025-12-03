@@ -6,6 +6,14 @@ export interface Player {
   position: string;
   number: number;
   available: boolean;
+  age?: number;
+  foto?: string;
+  phone?: string;
+  preferredFoot?: 'Direito' | 'Esquerdo' | 'Ambos';
+  secondaryPosition?: string;
+  isCaptain?: boolean;
+  isFreeKickTaker?: boolean;
+  isGuest?: boolean;
   stats: {
     goals: number;
     assists: number;

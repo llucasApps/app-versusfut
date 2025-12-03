@@ -128,3 +128,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Animação de pulso para o logo */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    text-shadow: 0 0 20px rgba(255, 107, 0, 0.5), 0 0 40px rgba(255, 107, 0, 0.3);
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    text-shadow: 0 0 30px rgba(255, 107, 0, 0.8), 0 0 60px rgba(255, 107, 0, 0.5);
+    transform: scale(1.02);
+  }
+}
+
+.logo-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}

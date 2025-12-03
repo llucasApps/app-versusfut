@@ -1,20 +1,22 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { Settings, User, Moon, Sun, Bell, BellOff } from 'lucide-react';
+import { Settings, User, Moon, Sun, Bell, BellOff, Shield } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface UserConfig {
   displayName: string;
   darkMode: boolean;
   notifications: boolean;
+  viewMode: 'owner' | 'player';
 }
 
 export default function ConfiguracoesPage() {
   const [config, setConfig] = useState<UserConfig>({
     displayName: 'Rafael Jr – Presidente Real Cohab',
     darkMode: true,
-    notifications: true
+    notifications: true,
+    viewMode: 'owner'
   });
   const [mounted, setMounted] = useState(false);
 
@@ -23,8 +25,15 @@ export default function ConfiguracoesPage() {
     
     // Carregar configurações do localStorage
     const savedConfig = localStorage.getItem('userConfig');
+    const savedViewMode = localStorage.getItem('viewMode') as 'owner' | 'player' | null;
+    
     if (savedConfig) {
-      setConfig(JSON.parse(savedConfig));
+      const parsedConfig = JSON.parse(savedConfig);
+      // Sincronizar viewMode do localStorage separado
+      if (savedViewMode) {
+        parsedConfig.viewMode = savedViewMode;
+      }
+      setConfig(parsedConfig);
     } else {
       // Salvar configuração padrão
       localStorage.setItem('userConfig', JSON.stringify(config));
@@ -35,6 +44,12 @@ export default function ConfiguracoesPage() {
     const newConfig = { ...config, [key]: value };
     setConfig(newConfig);
     localStorage.setItem('userConfig', JSON.stringify(newConfig));
+    
+    // Se for mudança de viewMode, salvar também separadamente e disparar evento
+    if (key === 'viewMode') {
+      localStorage.setItem('viewMode', value as string);
+      window.dispatchEvent(new CustomEvent('viewModeChange', { detail: value }));
+    }
   };
 
   if (!mounted) {
@@ -53,7 +68,7 @@ export default function ConfiguracoesPage() {
               <Settings className="w-8 h-8 text-[#FF6B00]" />
             </div>
             <div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 Configurações
               </h1>
               <p className="text-white/60 text-base sm:text-lg">Personalize sua experiência no VersusFut</p>
@@ -88,6 +103,53 @@ export default function ConfiguracoesPage() {
                   Este nome será exibido para outros usuários
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Modo de Visualização */}
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Shield className="w-6 h-6 text-[#FF6B00]" />
+              <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Modo de Visualização
+              </h2>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-white/60 text-sm mb-4">
+                Escolha como você deseja visualizar o aplicativo. O modo "Dono de Time" oferece acesso completo às funcionalidades de gestão.
+              </p>
+              
+              <div className="flex items-center gap-3 bg-white/5 rounded-xl p-2">
+                <button
+                  onClick={() => handleConfigChange('viewMode', 'owner')}
+                  className={`flex-1 flex items-center justify-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
+                    config.viewMode === 'owner'
+                      ? 'bg-[#FF6B00] text-white shadow-[0_0_20px_rgba(255,107,0,0.3)]'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Shield className="w-5 h-5" />
+                  <span className="font-medium">Dono de Time</span>
+                </button>
+                <button
+                  onClick={() => handleConfigChange('viewMode', 'player')}
+                  className={`flex-1 flex items-center justify-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
+                    config.viewMode === 'player'
+                      ? 'bg-[#FF6B00] text-white shadow-[0_0_20px_rgba(255,107,0,0.3)]'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <User className="w-5 h-5" />
+                  <span className="font-medium">Jogador</span>
+                </button>
+              </div>
+
+              <p className="text-white/40 text-xs mt-2">
+                {config.viewMode === 'owner' 
+                  ? 'Você tem acesso completo para gerenciar times, táticas e jogadores.'
+                  : 'Você está visualizando como jogador, com acesso limitado.'}
+              </p>
             </div>
           </div>
 
