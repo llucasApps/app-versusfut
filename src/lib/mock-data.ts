@@ -26,6 +26,10 @@ export interface Team {
   name: string;
   logo: string;
   description: string;
+  president?: string;
+  phone?: string;
+  category?: 'Juvenil' | 'Adulto' | 'Veterano 35+' | 'Master 45+';
+  availableForMatch?: boolean;
   players: Player[];
   stats: {
     wins: number;

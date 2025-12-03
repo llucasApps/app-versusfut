@@ -65,6 +65,17 @@ export default function TeamDetailPage() {
   const [capitaoFoto, setCapitaoFoto] = useState<string | null>(null);
   const [capitaoNome, setCapitaoNome] = useState<string>('');
   
+  // Estados para dados editados do time
+  const [teamData, setTeamData] = useState<{
+    name: string; 
+    logo: string; 
+    description: string; 
+    president: string;
+    phone: string;
+    category: string;
+    availableForMatch: boolean;
+  } | null>(null);
+  
   // Estados para Elenco
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
@@ -124,6 +135,16 @@ export default function TeamDetailPage() {
       const storedPlayers = localStorage.getItem(`players_${team.id}`);
       if (storedPlayers) {
         setCustomPlayers(JSON.parse(storedPlayers));
+      }
+    }
+  }, [team]);
+
+  // Carregar dados editados do time do localStorage
+  useEffect(() => {
+    if (team) {
+      const storedTeamData = localStorage.getItem(`team_${team.id}`);
+      if (storedTeamData) {
+        setTeamData(JSON.parse(storedTeamData));
       }
     }
   }, [team]);
@@ -376,25 +397,65 @@ export default function TeamDetailPage() {
         <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6 sm:p-8 mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-6">
             <div className="flex items-center gap-6">
-              <div className="text-6xl sm:text-7xl">{team.logo}</div>
+              {/* Logo do Time */}
+              {teamData?.logo && teamData.logo.startsWith('data:') ? (
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
+                  <img 
+                    src={teamData.logo} 
+                    alt="Logo do time" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="text-6xl sm:text-7xl">{team.logo}</div>
+              )}
               <div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  {team.name}
-                </h1>
-                <p className="text-white/60 text-lg">{team.description}</p>
+                <div className="flex items-center gap-3 flex-wrap mb-2">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {teamData?.name || team.name}
+                  </h1>
+                  {(teamData?.category || team.category) && (
+                    <span className="bg-[#FF6B00]/20 text-[#FF6B00] text-xs px-3 py-1 rounded-full font-medium">
+                      {teamData?.category || team.category}
+                    </span>
+                  )}
+                  <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                    (teamData?.availableForMatch !== undefined ? teamData.availableForMatch : team.availableForMatch !== false)
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    {(teamData?.availableForMatch !== undefined ? teamData.availableForMatch : team.availableForMatch !== false) ? 'Disponível' : 'Indisponível'}
+                  </span>
+                </div>
+                <p className="text-white/60 text-lg">{teamData?.description || team.description}</p>
+                <div className="flex flex-wrap gap-4 mt-2">
+                  {(teamData?.president || team.president) && (
+                    <p className="text-[#FF6B00] text-sm flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Presidente - {teamData?.president || team.president}
+                    </p>
+                  )}
+                  {(teamData?.phone || team.phone) && (
+                    <p className="text-white/60 text-sm flex items-center gap-2">
+                      📞 {teamData?.phone || team.phone}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
             
-            <Link href={`/times/${team.id}/editar`} className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2">
-              <Edit className="w-5 h-5" />
-              Editar Time
-            </Link>
+            {isOwnerMode && (
+              <Link href={`/times/${team.id}/editar`} className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2">
+                <Edit className="w-5 h-5" />
+                Editar Time
+              </Link>
+            )}
           </div>
 
           {/* Quick Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-[#FF6B00]/10 rounded-xl p-4 text-center">
-              <div className="text-3xl font-bold text-[#FF6B00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{team.players.length}</div>
+              <div className="text-3xl font-bold text-[#FF6B00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{team.players.length + customPlayers.length}</div>
               <div className="text-white/60 text-sm">Jogadores</div>
             </div>
             <div className="bg-[#FF6B00]/10 rounded-xl p-4 text-center">

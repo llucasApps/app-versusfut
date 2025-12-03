@@ -1,13 +1,16 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
+import { myTeams } from '@/lib/mock-data';
 import { ArrowLeft, Save, User, Phone, Upload, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 
-export default function CriarTimePage() {
+export default function EditarTimePage() {
+  const params = useParams();
   const router = useRouter();
+  const team = myTeams.find(t => t.id === params.id);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
@@ -21,6 +24,7 @@ export default function CriarTimePage() {
   });
 
   const [saved, setSaved] = useState(false);
+
   const categoryOptions = ['Juvenil', 'Adulto', 'Veterano 35+', 'Master 45+'] as const;
 
   // Função para upload de logo
@@ -36,32 +40,64 @@ export default function CriarTimePage() {
     }
   };
 
+  // Carregar dados do time
+  useEffect(() => {
+    if (team) {
+      // Verificar se há dados salvos no localStorage
+      const savedTeamData = localStorage.getItem(`team_${team.id}`);
+      if (savedTeamData) {
+        const parsed = JSON.parse(savedTeamData);
+        setFormData({
+          name: parsed.name || team.name,
+          logo: parsed.logo || team.logo,
+          description: parsed.description || team.description,
+          president: parsed.president || '',
+          phone: parsed.phone || '',
+          category: parsed.category || '',
+          availableForMatch: parsed.availableForMatch !== undefined ? parsed.availableForMatch : true,
+        });
+      } else {
+        setFormData({
+          name: team.name,
+          logo: team.logo,
+          description: team.description,
+          president: team.president || '',
+          phone: team.phone || '',
+          category: team.category || '',
+          availableForMatch: team.availableForMatch !== undefined ? team.availableForMatch : true,
+        });
+      }
+    }
+  }, [team]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Gerar ID único para o novo time
-    const newTeamId = `custom_${Date.now()}`;
-    
-    // Salvar no localStorage
-    const existingTeams = JSON.parse(localStorage.getItem('customTeams') || '[]');
-    const newTeam = {
-      id: newTeamId,
-      ...formData,
-      players: [],
-      stats: { wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
-      isMyTeam: true,
-    };
-    existingTeams.push(newTeam);
-    localStorage.setItem('customTeams', JSON.stringify(existingTeams));
-    localStorage.setItem(`team_${newTeamId}`, JSON.stringify(formData));
-    
-    setSaved(true);
-    
-    // Redirecionar após salvar
-    setTimeout(() => {
-      router.push('/times');
-    }, 1000);
+    if (team) {
+      // Salvar no localStorage
+      localStorage.setItem(`team_${team.id}`, JSON.stringify(formData));
+      setSaved(true);
+      
+      // Redirecionar após salvar
+      setTimeout(() => {
+        router.push(`/times/${team.id}`);
+      }, 1000);
+    }
   };
+
+  if (!team) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">⚽</div>
+          <h2 className="text-2xl font-bold text-white mb-2">Time não encontrado</h2>
+          <Link href="/times" className="text-[#FF6B00] hover:text-[#FF6B00]/80">
+            Voltar para Meus Times
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0D0D0D]">
@@ -69,24 +105,24 @@ export default function CriarTimePage() {
       
       <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Back Button */}
-        <Link href="/times" className="inline-flex items-center gap-2 text-white/60 hover:text-[#00FF00] transition-colors mb-6">
+        <Link href={`/times/${team.id}`} className="inline-flex items-center gap-2 text-white/60 hover:text-[#FF6B00] transition-colors mb-6">
           <ArrowLeft className="w-5 h-5" />
-          Voltar para Meus Times
+          Voltar para {team.name}
         </Link>
 
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Criar Novo Time
+            Editar Time
           </h1>
-          <p className="text-white/60">Preencha as informações do seu time</p>
+          <p className="text-white/60">Atualize as informações do seu time</p>
         </div>
 
         {/* Mensagem de sucesso */}
         {saved && (
           <div className="bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-4 rounded-xl mb-6 flex items-center gap-3">
             <Save className="w-5 h-5" />
-            Time criado com sucesso! Redirecionando...
+            Alterações salvas com sucesso! Redirecionando...
           </div>
         )}
 
@@ -274,7 +310,7 @@ export default function CriarTimePage() {
                     </div>
                   )}
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
                       <h4 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
                         {formData.name || 'Nome do Time'}
                       </h4>
@@ -311,18 +347,22 @@ export default function CriarTimePage() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10">
+                <div className="grid grid-cols-4 gap-4 pt-4 border-t border-white/10">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">0</div>
+                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.players.length}</div>
                     <div className="text-white/60 text-xs">Jogadores</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">0</div>
+                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.stats.wins + team.stats.draws + team.stats.losses}</div>
+                    <div className="text-white/60 text-xs">Partidas</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.stats.wins}</div>
                     <div className="text-white/60 text-xs">Vitórias</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">0</div>
-                    <div className="text-white/60 text-xs">Partidas</div>
+                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.stats.goalsFor}</div>
+                    <div className="text-white/60 text-xs">Gols</div>
                   </div>
                 </div>
               </div>
@@ -335,11 +375,11 @@ export default function CriarTimePage() {
                 className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center justify-center gap-2"
               >
                 <Save className="w-5 h-5" />
-                Criar Time
+                Salvar Alterações
               </button>
               
               <Link
-                href="/times"
+                href={`/times/${team.id}`}
                 className="bg-white/10 hover:bg-white/20 text-white font-medium py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center"
               >
                 Cancelar
