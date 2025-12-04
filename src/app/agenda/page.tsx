@@ -200,10 +200,10 @@ export default function AgendaPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-8 border-b border-white/10 pb-4">
+        <div className="flex gap-2 mb-8 border-b border-white/10 pb-4 overflow-x-auto">
           <button
             onClick={() => setActiveTab('matches')}
-            className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+            className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'matches'
                 ? 'bg-[#FF5A00] text-white'
                 : 'bg-white/5 text-white/60 hover:bg-white/10'
@@ -214,14 +214,14 @@ export default function AgendaPage() {
           </button>
           <button
             onClick={() => setActiveTab('settings')}
-            className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+            className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'settings'
                 ? 'bg-[#FF5A00] text-white'
                 : 'bg-white/5 text-white/60 hover:bg-white/10'
             }`}
           >
             <Settings className="w-5 h-5" />
-            Configurações
+            Definir Datas
           </button>
         </div>
 
@@ -318,12 +318,12 @@ export default function AgendaPage() {
                 {renderConfigCalendar()}
                 
                 {/* Resumo de datas selecionadas */}
-                <div className="mt-4 bg-white/5 rounded-xl p-4">
+                {/* <div className="mt-4 bg-white/5 rounded-xl p-4">
                   <div className="text-white/60 text-sm mb-2">Datas selecionadas:</div>
                   <div className="text-[#FF5A00] font-bold text-2xl">
                     {availableDates.length}
                   </div>
-                </div>
+                </div> */}
               </div>
 
               {/* Observações */}
@@ -360,6 +360,55 @@ export default function AgendaPage() {
                 </div>
               </div>
             </div>
+
+            {/* Resumo das Configurações Salvas */}
+            {availableDates.length > 0 && (
+              <div className="mt-8 bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-green-500/30 rounded-2xl p-6">
+                <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  Resumo da Disponibilidade
+                </h3>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Datas Selecionadas */}
+                  <div>
+                    <h4 className="text-white/60 text-sm mb-3 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Datas Disponíveis ({availableDates.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                      {availableDates
+                        .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+                        .map(date => (
+                          <span 
+                            key={date} 
+                            className="px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-sm font-medium"
+                          >
+                            {new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { 
+                              day: '2-digit', 
+                              month: 'short'
+                            })}
+                          </span>
+                        ))
+                      }
+                    </div>
+                  </div>
+
+                  {/* Observação */}
+                  {observation && (
+                    <div>
+                      <h4 className="text-white/60 text-sm mb-3 flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4" />
+                        Observação para Visitantes
+                      </h4>
+                      <div className="bg-white/5 rounded-xl p-4 text-white/80 text-sm">
+                        {observation}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Botão Salvar */}
             <div className="flex justify-end pt-6 border-t border-white/10">
