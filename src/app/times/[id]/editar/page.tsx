@@ -2,7 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import { myTeams } from '@/lib/mock-data';
-import { ArrowLeft, Save, User, Phone, Upload, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Save, User, Phone, Upload, Image as ImageIcon, CheckCircle, XCircle, MapPin, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
@@ -21,11 +21,14 @@ export default function EditarTimePage() {
     phone: '',
     category: '' as '' | 'Juvenil' | 'Adulto' | 'Veterano 35+' | 'Master 45+',
     availableForMatch: true,
+    teamType: '' as '' | 'Campo' | 'Society' | 'Futsal',
+    hasVenue: false,
   });
 
   const [saved, setSaved] = useState(false);
 
   const categoryOptions = ['Juvenil', 'Adulto', 'Veterano 35+', 'Master 45+'] as const;
+  const teamTypeOptions = ['Campo', 'Society', 'Futsal'] as const;
 
   // Função para upload de logo
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +58,8 @@ export default function EditarTimePage() {
           phone: parsed.phone || '',
           category: parsed.category || '',
           availableForMatch: parsed.availableForMatch !== undefined ? parsed.availableForMatch : true,
+          teamType: parsed.teamType || '',
+          hasVenue: parsed.hasVenue !== undefined ? parsed.hasVenue : false,
         });
       } else {
         setFormData({
@@ -65,6 +70,8 @@ export default function EditarTimePage() {
           phone: team.phone || '',
           category: team.category || '',
           availableForMatch: team.availableForMatch !== undefined ? team.availableForMatch : true,
+          teamType: team.teamType || '',
+          hasVenue: team.hasVenue !== undefined ? team.hasVenue : false,
         });
       }
     }
@@ -262,6 +269,59 @@ export default function EditarTimePage() {
                   <option key={cat} value={cat} className="bg-[#1A1A1A]">{cat}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Team Type */}
+            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+              <label htmlFor="teamType" className="block text-white font-bold mb-3 flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#FF6B00]" />
+                Tipo de Time
+              </label>
+              <select
+                id="teamType"
+                value={formData.teamType}
+                onChange={(e) => setFormData({ ...formData, teamType: e.target.value as typeof formData.teamType })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#FF6B00]/40 transition-all"
+              >
+                <option value="" className="bg-[#1A1A1A]">Selecione o tipo</option>
+                {teamTypeOptions.map(type => (
+                  <option key={type} value={type} className="bg-[#1A1A1A]">Time de {type}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Has Venue */}
+            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+              <label className="block text-white font-bold mb-4 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-[#FF6B00]" />
+                Possui local para jogo?
+              </label>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, hasVenue: true })}
+                  className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-xl transition-all ${
+                    formData.hasVenue
+                      ? 'bg-green-500/20 border-2 border-green-500 text-green-400'
+                      : 'bg-white/5 border-2 border-transparent text-white/60 hover:bg-white/10'
+                  }`}
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Sim
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, hasVenue: false })}
+                  className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-xl transition-all ${
+                    !formData.hasVenue
+                      ? 'bg-red-500/20 border-2 border-red-500 text-red-400'
+                      : 'bg-white/5 border-2 border-transparent text-white/60 hover:bg-white/10'
+                  }`}
+                >
+                  <XCircle className="w-5 h-5" />
+                  Não
+                </button>
+              </div>
             </div>
 
             {/* Availability */}
