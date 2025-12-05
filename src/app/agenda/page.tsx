@@ -7,7 +7,8 @@ import { useState, useEffect } from 'react';
 
 export default function AgendaPage() {
   const [activeTab, setActiveTab] = useState<'matches' | 'settings'>('matches');
-  const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed'>('all');
+  const [filter, setFilter] = useState<'confirmed' | 'completed'>('confirmed');
+  const [filterMonth, setFilterMonth] = useState<string>(''); // formato: '2024-02'
   const [mounted, setMounted] = useState(false);
   
   // Estados para configurações de agenda
@@ -95,14 +96,32 @@ export default function AgendaPage() {
     };
   };
 
-  const upcomingMatches = matches.filter(m => m.status === 'scheduled' || m.status === 'confirmed' || m.status === 'pending');
-  const completedMatches = matches.filter(m => m.status === 'completed');
+  // Carregar convites aceitos do localStorage
+  const [acceptedMatchIds, setAcceptedMatchIds] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const savedAccepted = localStorage.getItem('acceptedMatches');
+    if (savedAccepted) setAcceptedMatchIds(JSON.parse(savedAccepted));
+  }, []);
 
-  const filteredMatches = filter === 'all' 
-    ? matches 
-    : filter === 'upcoming' 
-    ? upcomingMatches 
-    : completedMatches;
+  // Partidas confirmadas: status 'confirmed' OU aceitas via Convites
+  const confirmedMatches = matches.filter(m => 
+    m.status === 'confirmed' || acceptedMatchIds.includes(m.id)
+  );
+  const completedMatches = matches.filter(m => m.status === 'completed');
+  
+  // Aplicar filtro de status
+  const statusFilteredMatches = filter === 'confirmed' ? confirmedMatches : completedMatches;
+  
+  // Aplicar filtro de mês (se selecionado)
+  const filteredMatches = filterMonth 
+    ? statusFilteredMatches.filter(m => m.date.startsWith(filterMonth))
+    : statusFilteredMatches;
+  
+  // Gerar lista de meses disponíveis para o filtro
+  const availableMonths = [...new Set(
+    [...confirmedMatches, ...completedMatches].map(m => m.date.substring(0, 7))
+  )].sort().reverse();
 
   const getStatusInfo = (status: string) => {
     switch (status) {
@@ -298,22 +317,15 @@ export default function AgendaPage() {
         {activeTab === 'matches' && (
           <>
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF5A00]/20 rounded-xl p-5">
-                <div className="text-3xl font-bold text-[#FF5A00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  {upcomingMatches.length}
-                </div>
-                <div className="text-white/60 text-sm">Próximos Jogos</div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF5A00]/20 rounded-xl p-5">
-                <div className="text-3xl font-bold text-[#FF5A00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  {matches.filter(m => m.status === 'confirmed').length}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-green-500/20 rounded-xl p-5">
+                <div className="text-3xl font-bold text-green-500 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {confirmedMatches.length}
                 </div>
                 <div className="text-white/60 text-sm">Confirmados</div>
               </div>
               
-              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF5A00]/20 rounded-xl p-5">
+              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-white/10 rounded-xl p-5">
                 <div className="text-3xl font-bold text-white/60 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   {completedMatches.length}
                 </div>
@@ -322,44 +334,67 @@ export default function AgendaPage() {
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-2">
-              <div className="flex items-center gap-2 text-white/60">
-                <Filter className="w-5 h-5" />
-                <span className="text-sm font-medium">Filtrar:</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+              {/* Filtro por Status */}
+              <div className="flex items-center gap-3 overflow-x-auto pb-2 sm:pb-0">
+                <div className="flex items-center gap-2 text-white/60">
+                  <Filter className="w-5 h-5" />
+                  <span className="text-sm font-medium">Status:</span>
+                </div>
+                
+                <button
+                  onClick={() => setFilter('confirmed')}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
+                    filter === 'confirmed'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-white/10 text-white/60 hover:bg-white/20'
+                  }`}
+                >
+                  Confirmados ({confirmedMatches.length})
+                </button>
+                
+                <button
+                  onClick={() => setFilter('completed')}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
+                    filter === 'completed'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-white/10 text-white/60 hover:bg-white/20'
+                  }`}
+                >
+                  Finalizados ({completedMatches.length})
+                </button>
               </div>
-              
-              <button
-                onClick={() => setFilter('all')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
-                  filter === 'all'
-                    ? 'bg-[#FF5A00] text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                Todos ({matches.length})
-              </button>
-              
-              <button
-                onClick={() => setFilter('upcoming')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
-                  filter === 'upcoming'
-                    ? 'bg-[#FF5A00] text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                Próximos ({upcomingMatches.length})
-              </button>
-              
-              <button
-                onClick={() => setFilter('completed')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
-                  filter === 'completed'
-                    ? 'bg-[#FF5A00] text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                Finalizados ({completedMatches.length})
-              </button>
+
+              {/* Filtro por Mês */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-white/60">
+                  <Calendar className="w-5 h-5" />
+                  <span className="text-sm font-medium">Mês:</span>
+                </div>
+                
+                <select
+                  value={filterMonth}
+                  onChange={(e) => setFilterMonth(e.target.value)}
+                  className="bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF5A00]/40 cursor-pointer"
+                >
+                  <option value="" className="bg-[#1A1A1A]">Todos os meses</option>
+                  {availableMonths.map(month => (
+                    <option key={month} value={month} className="bg-[#1A1A1A]">
+                      {new Date(month + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                    </option>
+                  ))}
+                </select>
+                
+                {filterMonth && (
+                  <button
+                    onClick={() => setFilterMonth('')}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    title="Limpar filtro"
+                  >
+                    <X className="w-4 h-4 text-white/60" />
+                  </button>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -572,11 +607,6 @@ export default function AgendaPage() {
                       >
                         Ver Detalhes
                       </button>
-                      {(match.status === 'pending' || match.status === 'scheduled') && (
-                        <button className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm">
-                          Confirmar Presença
-                        </button>
-                      )}
                     </div>
                   </div>
                 );
@@ -590,7 +620,10 @@ export default function AgendaPage() {
                 <h3 className="text-2xl font-bold text-white mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   Nenhum jogo encontrado
                 </h3>
-                <p className="text-white/60">Não há jogos {filter === 'upcoming' ? 'próximos' : filter === 'completed' ? 'finalizados' : ''} no momento.</p>
+                <p className="text-white/60">
+                  Não há jogos {filter === 'confirmed' ? 'confirmados' : 'finalizados'}
+                  {filterMonth && ` em ${new Date(filterMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`}.
+                </p>
               </div>
             )}
           </>
