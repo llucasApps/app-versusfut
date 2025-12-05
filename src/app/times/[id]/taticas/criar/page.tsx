@@ -2,13 +2,26 @@
 
 import Navigation from '@/components/Navigation';
 import { myTeams } from '@/lib/mock-data';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Users, X, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 
-interface Player {
-  id: number;
+// Jogador do elenco
+interface TeamPlayer {
+  id: string;
+  name: string;
+  position: string;
+  number: number;
+  available: boolean;
+}
+
+// Jogador posicionado no campo
+interface FieldPlayer {
+  id: string; // ID do jogador do elenco ou posição genérica
+  playerId: string | null; // ID do jogador do elenco (null se não atribuído)
+  name: string;
+  number: number;
   x: number;
   y: number;
 }
@@ -20,22 +33,23 @@ interface Tatica {
   descricao: string;
   tipo: 'Ofensiva' | 'Defensiva' | 'Bola parada';
   layoutJson: {
-    players: Player[];
+    players: FieldPlayer[];
   };
 }
 
-const INITIAL_FORMATION = [
-  { id: 1, x: 50, y: 90 }, // Goleiro
-  { id: 2, x: 20, y: 75 }, // Zagueiro esquerdo
-  { id: 3, x: 40, y: 75 }, // Zagueiro central esquerdo
-  { id: 4, x: 60, y: 75 }, // Zagueiro central direito
-  { id: 5, x: 80, y: 75 }, // Zagueiro direito
-  { id: 6, x: 30, y: 55 }, // Meio-campo esquerdo
-  { id: 7, x: 50, y: 55 }, // Meio-campo central
-  { id: 8, x: 70, y: 55 }, // Meio-campo direito
-  { id: 9, x: 30, y: 30 }, // Atacante esquerdo
-  { id: 10, x: 50, y: 25 }, // Atacante central
-  { id: 11, x: 70, y: 30 }, // Atacante direito
+// Posições iniciais vazias (sem jogadores atribuídos)
+const INITIAL_FORMATION: FieldPlayer[] = [
+  { id: 'pos1', playerId: null, name: '', number: 1, x: 50, y: 90 }, // Goleiro
+  { id: 'pos2', playerId: null, name: '', number: 2, x: 20, y: 75 }, // Zagueiro esquerdo
+  { id: 'pos3', playerId: null, name: '', number: 3, x: 40, y: 75 }, // Zagueiro central esquerdo
+  { id: 'pos4', playerId: null, name: '', number: 4, x: 60, y: 75 }, // Zagueiro central direito
+  { id: 'pos5', playerId: null, name: '', number: 5, x: 80, y: 75 }, // Zagueiro direito
+  { id: 'pos6', playerId: null, name: '', number: 6, x: 30, y: 55 }, // Meio-campo esquerdo
+  { id: 'pos7', playerId: null, name: '', number: 7, x: 50, y: 55 }, // Meio-campo central
+  { id: 'pos8', playerId: null, name: '', number: 8, x: 70, y: 55 }, // Meio-campo direito
+  { id: 'pos9', playerId: null, name: '', number: 9, x: 30, y: 30 }, // Atacante esquerdo
+  { id: 'pos10', playerId: null, name: '', number: 10, x: 50, y: 25 }, // Atacante central
+  { id: 'pos11', playerId: null, name: '', number: 11, x: 70, y: 30 }, // Atacante direito
 ];
 
 export default function CriarTaticaPage() {
@@ -47,10 +61,26 @@ export default function CriarTaticaPage() {
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState<'Ofensiva' | 'Defensiva' | 'Bola parada'>('Ofensiva');
   const [descricao, setDescricao] = useState('');
-  const [players, setPlayers] = useState<Player[]>(INITIAL_FORMATION);
-  const [draggingPlayer, setDraggingPlayer] = useState<number | null>(null);
+  const [fieldPlayers, setFieldPlayers] = useState<FieldPlayer[]>(INITIAL_FORMATION);
+  const [draggingPlayer, setDraggingPlayer] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
+  const [teamPlayers, setTeamPlayers] = useState<TeamPlayer[]>([]);
+
+  // Carregar jogadores do elenco
+  useEffect(() => {
+    if (team) {
+      // Primeiro tenta carregar do localStorage (jogadores adicionados)
+      const storedPlayers = localStorage.getItem(`team_${params.id}_players`);
+      if (storedPlayers) {
+        setTeamPlayers(JSON.parse(storedPlayers));
+      } else if (team.players) {
+        // Fallback para jogadores do mock
+        setTeamPlayers(team.players as TeamPlayer[]);
+      }
+    }
+  }, [team, params.id]);
 
   useEffect(() => {
     // Verificar se está editando
@@ -63,7 +93,7 @@ export default function CriarTaticaPage() {
           setNome(tatica.nome);
           setTipo(tatica.tipo);
           setDescricao(tatica.descricao);
-          setPlayers(tatica.layoutJson.players);
+          setFieldPlayers(tatica.layoutJson.players);
           setIsEditing(true);
           setEditingId(tatica.id);
         }
@@ -71,8 +101,48 @@ export default function CriarTaticaPage() {
     }
   }, [params.id, params.taticaId]);
 
-  const handleMouseDown = (playerId: number) => {
-    setDraggingPlayer(playerId);
+  // Jogadores já escalados (para não mostrar na lista)
+  const assignedPlayerIds = fieldPlayers
+    .filter(fp => fp.playerId !== null)
+    .map(fp => fp.playerId);
+
+  // Jogadores disponíveis para escalar
+  const availablePlayers = teamPlayers.filter(
+    tp => !assignedPlayerIds.includes(tp.id)
+  );
+
+  // Atribuir jogador a uma posição
+  const assignPlayerToPosition = (positionId: string, player: TeamPlayer) => {
+    setFieldPlayers(prev =>
+      prev.map(fp =>
+        fp.id === positionId
+          ? { ...fp, playerId: player.id, name: player.name, number: player.number }
+          : fp
+      )
+    );
+    setSelectedPosition(null);
+  };
+
+  // Remover jogador de uma posição
+  const removePlayerFromPosition = (positionId: string) => {
+    const position = fieldPlayers.find(fp => fp.id === positionId);
+    if (!position) return;
+    
+    // Encontrar o índice da posição para restaurar o número padrão
+    const posIndex = INITIAL_FORMATION.findIndex(p => p.id === positionId);
+    const defaultNumber = posIndex !== -1 ? INITIAL_FORMATION[posIndex].number : 0;
+    
+    setFieldPlayers(prev =>
+      prev.map(fp =>
+        fp.id === positionId
+          ? { ...fp, playerId: null, name: '', number: defaultNumber }
+          : fp
+      )
+    );
+  };
+
+  const handleMouseDown = (positionId: string) => {
+    setDraggingPlayer(positionId);
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -85,7 +155,7 @@ export default function CriarTaticaPage() {
       const clampedX = Math.max(5, Math.min(95, x));
       const clampedY = Math.max(5, Math.min(95, y));
 
-      setPlayers(prev => 
+      setFieldPlayers(prev => 
         prev.map(p => 
           p.id === draggingPlayer 
             ? { ...p, x: clampedX, y: clampedY }
@@ -99,8 +169,8 @@ export default function CriarTaticaPage() {
     setDraggingPlayer(null);
   };
 
-  const handleTouchStart = (playerId: number) => {
-    setDraggingPlayer(playerId);
+  const handleTouchStart = (positionId: string) => {
+    setDraggingPlayer(positionId);
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -113,7 +183,7 @@ export default function CriarTaticaPage() {
       const clampedX = Math.max(5, Math.min(95, x));
       const clampedY = Math.max(5, Math.min(95, y));
 
-      setPlayers(prev => 
+      setFieldPlayers(prev => 
         prev.map(p => 
           p.id === draggingPlayer 
             ? { ...p, x: clampedX, y: clampedY }
@@ -139,7 +209,7 @@ export default function CriarTaticaPage() {
       nome,
       tipo,
       descricao,
-      layoutJson: { players }
+      layoutJson: { players: fieldPlayers }
     };
 
     // Salvar no localStorage
@@ -258,18 +328,50 @@ export default function CriarTaticaPage() {
               </h3>
               <ul className="space-y-2 text-white/80 text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="text-[#FF6B00] mt-1">•</span>
-                  <span>Clique e arraste os jogadores para posicioná-los no campo</span>
+                  <span className="text-[#FF6B00] mt-1">1.</span>
+                  <span>Clique nas posições vazias (círculos tracejados) para escalar jogadores do elenco</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#FF6B00] mt-1">•</span>
-                  <span>Em dispositivos móveis, toque e arraste</span>
+                  <span className="text-[#FF6B00] mt-1">2.</span>
+                  <span>Arraste os jogadores escalados para ajustar suas posições no campo</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#FF6B00] mt-1">•</span>
-                  <span>Os números representam as posições dos jogadores</span>
+                  <span className="text-[#FF6B00] mt-1">3.</span>
+                  <span>Clique no X ao lado do nome para remover um jogador da posição</span>
                 </li>
               </ul>
+            </div>
+
+            {/* Jogadores Escalados */}
+            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#FF6B00]" />
+                Escalação ({fieldPlayers.filter(p => p.playerId).length}/11)
+              </h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {fieldPlayers.filter(p => p.playerId).length > 0 ? (
+                  fieldPlayers
+                    .filter(p => p.playerId)
+                    .map(player => (
+                      <div key={player.id} className="flex items-center gap-3 p-2 bg-white/5 rounded-lg">
+                        <div className="w-8 h-8 bg-[#FF6B00] rounded-full flex items-center justify-center text-white font-bold text-sm">
+                          {player.number}
+                        </div>
+                        <span className="text-white text-sm flex-1 truncate">{player.name}</span>
+                        <button
+                          onClick={() => removePlayerFromPosition(player.id)}
+                          className="p-1 hover:bg-white/10 rounded transition-colors"
+                        >
+                          <X className="w-4 h-4 text-white/40 hover:text-red-400" />
+                        </button>
+                      </div>
+                    ))
+                ) : (
+                  <p className="text-white/40 text-sm text-center py-4">
+                    Nenhum jogador escalado ainda
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Actions */}
@@ -325,32 +427,120 @@ export default function CriarTaticaPage() {
                 </div>
 
                 {/* Players */}
-                {players.map((player) => (
+                {fieldPlayers.map((player) => (
                   <div
                     key={player.id}
-                    className={`absolute w-12 h-12 bg-[#FF6B00] rounded-full border-4 border-white shadow-2xl flex items-center justify-center text-lg font-bold text-white transition-transform ${
-                      draggingPlayer === player.id ? 'scale-110 cursor-grabbing' : 'cursor-grab hover:scale-105'
-                    }`}
+                    className="absolute group"
                     style={{
                       left: `${player.x}%`,
                       top: `${player.y}%`,
                       transform: 'translate(-50%, -50%)',
                       zIndex: draggingPlayer === player.id ? 50 : 10
                     }}
-                    onMouseDown={() => handleMouseDown(player.id)}
-                    onTouchStart={() => handleTouchStart(player.id)}
                   >
-                    {player.id}
+                    {/* Círculo do jogador */}
+                    <div
+                      className={`w-12 h-12 rounded-full border-4 shadow-2xl flex items-center justify-center text-lg font-bold text-white transition-all ${
+                        player.playerId 
+                          ? 'bg-[#FF6B00] border-white cursor-grab hover:scale-105' 
+                          : 'bg-white/20 border-dashed border-white/40 cursor-pointer hover:bg-white/30'
+                      } ${draggingPlayer === player.id ? 'scale-110 cursor-grabbing' : ''}`}
+                      onMouseDown={() => player.playerId && handleMouseDown(player.id)}
+                      onTouchStart={() => player.playerId && handleTouchStart(player.id)}
+                      onClick={() => !player.playerId && setSelectedPosition(player.id)}
+                    >
+                      {player.number}
+                    </div>
+                    
+                    {/* Nome do jogador (se atribuído) */}
+                    {player.playerId && player.name && (
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap">
+                        <div className="bg-black/80 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                          <span className="font-medium truncate max-w-[80px]">{player.name.split(' ')[0]}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removePlayerFromPosition(player.id);
+                            }}
+                            className="ml-1 hover:text-red-400 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Indicador de posição vazia */}
+                    {!player.playerId && (
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-[#FF6B00] text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                          <UserPlus className="w-3 h-3 inline mr-1" />
+                          Clique para escalar
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
 
               <p className="text-white/60 text-sm mt-4 text-center">
-                Arraste os jogadores para posicioná-los no campo
+                Clique nas posições vazias para escalar jogadores do elenco
               </p>
             </div>
           </div>
         </div>
+
+        {/* Modal de seleção de jogador */}
+        {selectedPosition && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/30 rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#FF6B00]" />
+                  Escalar Jogador
+                </h3>
+                <button
+                  onClick={() => setSelectedPosition(null)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-white/60" />
+                </button>
+              </div>
+              
+              <div className="p-4 overflow-y-auto max-h-[60vh]">
+                {availablePlayers.length > 0 ? (
+                  <div className="space-y-2">
+                    {availablePlayers.map((player) => (
+                      <button
+                        key={player.id}
+                        onClick={() => assignPlayerToPosition(selectedPosition, player)}
+                        className="w-full flex items-center gap-4 p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors text-left"
+                      >
+                        <div className="w-10 h-10 bg-[#FF6B00] rounded-full flex items-center justify-center text-white font-bold">
+                          {player.number}
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-white font-medium">{player.name}</div>
+                          <div className="text-white/60 text-sm">{player.position}</div>
+                        </div>
+                        {!player.available && (
+                          <span className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded">
+                            Indisponível
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                    <p className="text-white/60">Todos os jogadores já foram escalados</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
