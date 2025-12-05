@@ -100,9 +100,9 @@ export const myTeams: Team[] = [
   },
   {
     id: '2',
-    name: 'Veteranos da Vila',
+    name: 'Real Cohab',
     logo: '🏆',
-    description: 'Experiência em campo desde 2010',
+    description: 'Inimigos da vitória',
     isMyTeam: true,
     stats: {
       wins: 8,

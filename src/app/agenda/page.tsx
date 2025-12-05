@@ -2,7 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import { matches } from '@/lib/mock-data';
-import { Calendar, Clock, MapPin, Filter, CheckCircle, XCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, MapPin, Filter, CheckCircle, XCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare, X, Phone, User, Star, Upload, Trophy } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function AgendaPage() {
@@ -15,15 +15,85 @@ export default function AgendaPage() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [observation, setObservation] = useState('');
   const [savedConfig, setSavedConfig] = useState(false);
+  
+  // Estado para modal de detalhes da partida
+  const [selectedMatch, setSelectedMatch] = useState<typeof matches[0] | null>(null);
+  
+  // Estados para edição de jogo finalizado
+  const [editingScore, setEditingScore] = useState(false);
+  const [scoreHome, setScoreHome] = useState('');
+  const [scoreAway, setScoreAway] = useState('');
+  const [highlightPlayer, setHighlightPlayer] = useState({ name: '', photo: '' });
+  const [matchHighlights, setMatchHighlights] = useState<Record<string, { score: { home: number; away: number }; highlight?: { name: string; photo: string } }>>({}); 
 
   useEffect(() => {
     setMounted(true);
     // Carregar configurações salvas do localStorage
     const savedDates = localStorage.getItem('teamAvailableDates');
     const savedObs = localStorage.getItem('teamAgendaObservation');
+    const savedHighlights = localStorage.getItem('matchHighlights');
     if (savedDates) setAvailableDates(JSON.parse(savedDates));
     if (savedObs) setObservation(savedObs);
+    if (savedHighlights) setMatchHighlights(JSON.parse(savedHighlights));
   }, []);
+
+  // Função para abrir modal com dados carregados
+  const openMatchDetails = (match: typeof matches[0]) => {
+    setSelectedMatch(match);
+    const saved = matchHighlights[match.id];
+    if (saved) {
+      setScoreHome(saved.score.home.toString());
+      setScoreAway(saved.score.away.toString());
+      setHighlightPlayer(saved.highlight || { name: '', photo: '' });
+    } else if (match.score) {
+      setScoreHome(match.score.home.toString());
+      setScoreAway(match.score.away.toString());
+      setHighlightPlayer({ name: '', photo: '' });
+    } else {
+      setScoreHome('');
+      setScoreAway('');
+      setHighlightPlayer({ name: '', photo: '' });
+    }
+    setEditingScore(false);
+  };
+
+  // Função para salvar placar e destaque
+  const saveMatchResult = () => {
+    if (!selectedMatch) return;
+    
+    const newHighlights = {
+      ...matchHighlights,
+      [selectedMatch.id]: {
+        score: { home: parseInt(scoreHome) || 0, away: parseInt(scoreAway) || 0 },
+        highlight: highlightPlayer.name ? highlightPlayer : undefined
+      }
+    };
+    
+    setMatchHighlights(newHighlights);
+    localStorage.setItem('matchHighlights', JSON.stringify(newHighlights));
+    setEditingScore(false);
+  };
+
+  // Função para upload de foto do destaque
+  const handleHighlightPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setHighlightPlayer(prev => ({ ...prev, photo: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Obter dados da partida (salvos ou originais)
+  const getMatchData = (match: typeof matches[0]) => {
+    const saved = matchHighlights[match.id];
+    return {
+      score: saved?.score || match.score,
+      highlight: saved?.highlight
+    };
+  };
 
   const upcomingMatches = matches.filter(m => m.status === 'scheduled' || m.status === 'confirmed' || m.status === 'pending');
   const completedMatches = matches.filter(m => m.status === 'completed');
@@ -37,15 +107,14 @@ export default function AgendaPage() {
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'confirmed':
-        return { icon: CheckCircle, text: 'Confirmado', color: 'text-[#FF5A00]', bg: 'bg-[#FF5A00]/20' };
+        return { icon: CheckCircle, text: 'Confirmado', color: 'text-green-500', bg: 'bg-green-500/20' };
       case 'scheduled':
-        return { icon: Clock, text: 'Agendado', color: 'text-white/60', bg: 'bg-white/10' };
       case 'pending':
         return { icon: AlertCircle, text: 'Pendente', color: 'text-yellow-500', bg: 'bg-yellow-500/20' };
       case 'completed':
-        return { icon: CheckCircle, text: 'Finalizado', color: 'text-white/40', bg: 'bg-white/10' };
+        return { icon: CheckCircle, text: 'Finalizado', color: 'text-white/50', bg: 'bg-white/10' };
       default:
-        return { icon: Clock, text: 'Agendado', color: 'text-white/60', bg: 'bg-white/10' };
+        return { icon: AlertCircle, text: 'Pendente', color: 'text-yellow-500', bg: 'bg-yellow-500/20' };
     }
   };
 
@@ -495,19 +564,20 @@ export default function AgendaPage() {
                       </div>
                     </div>
 
-                    {/* Actions for upcoming matches */}
-                    {match.status !== 'completed' && (
-                      <div className="mt-4 pt-4 border-t border-white/10 flex gap-3">
-                        <button className="flex-1 bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm">
-                          Ver Detalhes
+                    {/* Actions */}
+                    <div className="mt-4 pt-4 border-t border-white/10 flex gap-3">
+                      <button 
+                        onClick={() => openMatchDetails(match)}
+                        className="flex-1 bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm"
+                      >
+                        Ver Detalhes
+                      </button>
+                      {(match.status === 'pending' || match.status === 'scheduled') && (
+                        <button className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm">
+                          Confirmar Presença
                         </button>
-                        {match.status === 'pending' && (
-                          <button className="flex-1 bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm">
-                            Confirmar Presença
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -524,6 +594,238 @@ export default function AgendaPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* Modal de Detalhes da Partida */}
+        {selectedMatch && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF5A00]/30 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              {/* Header do Modal */}
+              <div className="flex items-center justify-between p-6 border-b border-white/10">
+                <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Detalhes da Partida
+                </h2>
+                <button
+                  onClick={() => setSelectedMatch(null)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-white/60" />
+                </button>
+              </div>
+
+              {/* Conteúdo */}
+              <div className="p-6 space-y-6">
+                {/* Status */}
+                {(() => {
+                  const statusInfo = getStatusInfo(selectedMatch.status);
+                  const StatusIcon = statusInfo.icon;
+                  return (
+                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${statusInfo.bg}`}>
+                      <StatusIcon className={`w-4 h-4 ${statusInfo.color}`} />
+                      <span className={`font-medium ${statusInfo.color}`}>{statusInfo.text}</span>
+                    </div>
+                  );
+                })()}
+
+                {/* Times e Placar */}
+                <div className="bg-white/5 rounded-xl p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold text-white mb-1">{selectedMatch.homeTeam}</div>
+                      <div className="text-white/40 text-sm">Casa</div>
+                    </div>
+                    
+                    <div className="px-6">
+                      {selectedMatch.status === 'completed' && editingScore ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={scoreHome}
+                            onChange={(e) => setScoreHome(e.target.value)}
+                            className="w-14 h-14 bg-white/10 border border-white/20 rounded-lg text-center text-2xl font-bold text-white focus:outline-none focus:border-[#FF5A00]"
+                          />
+                          <div className="text-white/40 text-xl">×</div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={scoreAway}
+                            onChange={(e) => setScoreAway(e.target.value)}
+                            className="w-14 h-14 bg-white/10 border border-white/20 rounded-lg text-center text-2xl font-bold text-white focus:outline-none focus:border-[#FF5A00]"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          {(() => {
+                            const matchData = getMatchData(selectedMatch);
+                            return matchData.score ? (
+                              <div className="flex items-center gap-3">
+                                <div className="text-3xl font-bold text-white">{matchData.score.home}</div>
+                                <div className="text-white/40 text-xl">×</div>
+                                <div className="text-3xl font-bold text-white">{matchData.score.away}</div>
+                              </div>
+                            ) : (
+                              <div className="px-4 py-2 bg-[#FF5A00]/20 rounded-xl">
+                                <div className="text-[#FF5A00] font-bold">VS</div>
+                              </div>
+                            );
+                          })()}
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="text-center flex-1">
+                      <div className="text-2xl font-bold text-white mb-1">{selectedMatch.awayTeam}</div>
+                      <div className="text-white/40 text-sm">Visitante</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Informações */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 text-white/80">
+                    <Calendar className="w-5 h-5 text-[#FF5A00]" />
+                    <span className="capitalize">{formatDate(selectedMatch.date)}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 text-white/80">
+                    <Clock className="w-5 h-5 text-[#FF5A00]" />
+                    <span>{selectedMatch.time}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 text-white/80">
+                    <MapPin className="w-5 h-5 text-[#FF5A00]" />
+                    <span>{selectedMatch.location}</span>
+                  </div>
+                </div>
+
+                {/* Destaque da Partida - Apenas para jogos finalizados */}
+                {selectedMatch.status === 'completed' && (
+                  <div className="pt-4 border-t border-white/10">
+                    <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-[#FF5A00]" />
+                      Destaque da Partida
+                    </h3>
+                    
+                    {editingScore ? (
+                      <div className="space-y-4">
+                        {/* Upload de foto */}
+                        <div className="flex items-center gap-4">
+                          <div className="relative">
+                            {highlightPlayer.photo ? (
+                              <img 
+                                src={highlightPlayer.photo} 
+                                alt="Destaque" 
+                                className="w-20 h-20 rounded-full object-cover border-2 border-[#FF5A00]"
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center border-2 border-dashed border-white/30">
+                                <User className="w-8 h-8 text-white/40" />
+                              </div>
+                            )}
+                            <label className="absolute -bottom-1 -right-1 p-1.5 bg-[#FF5A00] rounded-full cursor-pointer hover:bg-[#FF5A00]/80 transition-colors">
+                              <Upload className="w-4 h-4 text-white" />
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={handleHighlightPhotoUpload}
+                                className="hidden" 
+                              />
+                            </label>
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-white/60 text-sm mb-2">Nome do Jogador</label>
+                            <input
+                              type="text"
+                              value={highlightPlayer.name}
+                              onChange={(e) => setHighlightPlayer(prev => ({ ...prev, name: e.target.value }))}
+                              placeholder="Ex: João Silva"
+                              className="w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF5A00]/40"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {(() => {
+                          const matchData = getMatchData(selectedMatch);
+                          return matchData.highlight ? (
+                            <div className="flex items-center gap-4 bg-white/5 rounded-xl p-4">
+                              {matchData.highlight.photo ? (
+                                <img 
+                                  src={matchData.highlight.photo} 
+                                  alt={matchData.highlight.name} 
+                                  className="w-16 h-16 rounded-full object-cover border-2 border-[#FF5A00]"
+                                />
+                              ) : (
+                                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+                                  <User className="w-6 h-6 text-white/40" />
+                                </div>
+                              )}
+                              <div>
+                                <div className="text-[#FF5A00] text-xs font-medium mb-1">⭐ Destaque</div>
+                                <div className="text-white font-bold">{matchData.highlight.name}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-white/40 text-sm italic">
+                              Nenhum destaque definido. Clique em "Editar Resultado" para adicionar.
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Ações */}
+                <div className="pt-4 border-t border-white/10 space-y-3">
+                  {/* Ações para jogo finalizado */}
+                  {selectedMatch.status === 'completed' && (
+                    <>
+                      {editingScore ? (
+                        <button 
+                          onClick={saveMatchResult}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2"
+                        >
+                          <Save className="w-5 h-5" />
+                          Salvar Resultado
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => setEditingScore(true)}
+                          className="w-full bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all"
+                        >
+                          Editar Resultado
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {/* Ações para jogo pendente */}
+                  {(selectedMatch.status === 'pending' || selectedMatch.status === 'scheduled') && (
+                    <button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition-all">
+                      Confirmar Presença
+                    </button>
+                  )}
+                  
+                  {/* Cancelar partida - apenas para jogos não finalizados */}
+                  {selectedMatch.status !== 'completed' && (
+                    <button className="w-full bg-red-600/20 hover:bg-red-600/30 text-red-400 font-medium py-3 px-6 rounded-xl transition-all border border-red-600/30">
+                      Cancelar Partida
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => setSelectedMatch(null)}
+                    className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-xl transition-all"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
