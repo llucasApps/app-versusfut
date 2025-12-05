@@ -9,7 +9,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
   { href: '/times', label: 'Meus Times', icon: Users },
   { href: '/agenda', label: 'Agenda', icon: Calendar },
-  { href: '/buscar', label: 'Buscar Times', icon: Search },
+  { href: '/buscar', label: 'Marcar Jogo', icon: Search },
   { href: '/convites', label: 'Convites', icon: Mail },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ];

@@ -264,9 +264,9 @@ export default function BuscarPage() {
         {/* Header */}
         <div className="mb-8 sm:mb-12">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Buscar Times
+            Marcar Jogo
           </h1>
-          <p className="text-white/60 text-base sm:text-lg">Encontre adversários e desafie para uma partida</p>
+          <p className="text-white/60 text-base sm:text-lg">Encontre times adversários e agende sua partida</p>
         </div>
 
         {/* Search & Filters */}

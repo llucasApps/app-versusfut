@@ -292,7 +292,7 @@ export default function ConvitesPage() {
               className="inline-flex items-center gap-2 bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-8 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,90,0,0.3)]"
             >
               <Send className="w-5 h-5" />
-              Buscar Times para Desafiar
+              Marcar Jogo
             </Link>
           </div>
         )}
