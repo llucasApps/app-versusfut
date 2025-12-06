@@ -21,7 +21,7 @@ interface Tatica {
   timeId: string;
   nome: string;
   descricao: string;
-  tipo: 'Ofensiva' | 'Defensiva' | 'Bola parada';
+  formacao: string;
   layoutJson: {
     players: FieldPlayer[];
   };
@@ -105,7 +105,7 @@ export default function TaticasPage() {
                   <div className="flex items-start justify-between mb-3">
                     <Clipboard className="w-8 h-8 text-[#FF6B00]" />
                     <div className="px-3 py-1 bg-[#FF6B00]/10 rounded-full">
-                      <div className="text-[#FF6B00] text-xs font-bold">{tatica.tipo}</div>
+                      <div className="text-[#FF6B00] text-xs font-bold">{tatica.formacao || '4-4-2'}</div>
                     </div>
                   </div>
                   

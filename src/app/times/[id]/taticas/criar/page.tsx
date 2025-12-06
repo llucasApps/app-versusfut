@@ -26,12 +26,28 @@ interface FieldPlayer {
   y: number;
 }
 
+// Formações disponíveis
+const FORMACOES = [
+  '4-4-2',
+  '4-3-3',
+  '4-2-3-1',
+  '3-5-2',
+  '4-5-1',
+  '3-4-3',
+  '5-3-2',
+  '5-4-1',
+  '4-1-4-1',
+  '4-3-2-1',
+] as const;
+
+type Formacao = typeof FORMACOES[number];
+
 interface Tatica {
   id: string;
   timeId: string;
   nome: string;
   descricao: string;
-  tipo: 'Ofensiva' | 'Defensiva' | 'Bola parada';
+  formacao: Formacao;
   layoutJson: {
     players: FieldPlayer[];
   };
@@ -59,7 +75,7 @@ export default function CriarTaticaPage() {
   const fieldRef = useRef<HTMLDivElement>(null);
   
   const [nome, setNome] = useState('');
-  const [tipo, setTipo] = useState<'Ofensiva' | 'Defensiva' | 'Bola parada'>('Ofensiva');
+  const [formacao, setFormacao] = useState<Formacao>('4-4-2');
   const [descricao, setDescricao] = useState('');
   const [fieldPlayers, setFieldPlayers] = useState<FieldPlayer[]>(INITIAL_FORMATION);
   const [draggingPlayer, setDraggingPlayer] = useState<string | null>(null);
@@ -91,7 +107,7 @@ export default function CriarTaticaPage() {
         const tatica = taticas.find(t => t.id === params.taticaId);
         if (tatica) {
           setNome(tatica.nome);
-          setTipo(tatica.tipo);
+          setFormacao(tatica.formacao || '4-4-2');
           setDescricao(tatica.descricao);
           setFieldPlayers(tatica.layoutJson.players);
           setIsEditing(true);
@@ -207,7 +223,7 @@ export default function CriarTaticaPage() {
       id: isEditing && editingId ? editingId : `tatica_${Date.now()}`,
       timeId: params.id as string,
       nome,
-      tipo,
+      formacao,
       descricao,
       layoutJson: { players: fieldPlayers }
     };
@@ -289,19 +305,19 @@ export default function CriarTaticaPage() {
                   />
                 </div>
 
-                {/* Tipo */}
+                {/* Formação */}
                 <div>
                   <label className="block text-white/80 font-medium mb-2">
-                    Tipo
+                    Formação
                   </label>
                   <select
-                    value={tipo}
-                    onChange={(e) => setTipo(e.target.value as any)}
+                    value={formacao}
+                    onChange={(e) => setFormacao(e.target.value as Formacao)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FF6B00] transition-colors"
                   >
-                    <option value="Ofensiva">Ofensiva</option>
-                    <option value="Defensiva">Defensiva</option>
-                    <option value="Bola parada">Bola parada</option>
+                    {FORMACOES.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
                   </select>
                 </div>
 
