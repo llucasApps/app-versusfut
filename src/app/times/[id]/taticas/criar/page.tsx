@@ -53,20 +53,89 @@ interface Tatica {
   };
 }
 
-// Posições iniciais vazias (sem jogadores atribuídos)
-const INITIAL_FORMATION: FieldPlayer[] = [
-  { id: 'pos1', playerId: null, name: '', number: 1, x: 50, y: 90 }, // Goleiro
-  { id: 'pos2', playerId: null, name: '', number: 2, x: 20, y: 75 }, // Zagueiro esquerdo
-  { id: 'pos3', playerId: null, name: '', number: 3, x: 40, y: 75 }, // Zagueiro central esquerdo
-  { id: 'pos4', playerId: null, name: '', number: 4, x: 60, y: 75 }, // Zagueiro central direito
-  { id: 'pos5', playerId: null, name: '', number: 5, x: 80, y: 75 }, // Zagueiro direito
-  { id: 'pos6', playerId: null, name: '', number: 6, x: 30, y: 55 }, // Meio-campo esquerdo
-  { id: 'pos7', playerId: null, name: '', number: 7, x: 50, y: 55 }, // Meio-campo central
-  { id: 'pos8', playerId: null, name: '', number: 8, x: 70, y: 55 }, // Meio-campo direito
-  { id: 'pos9', playerId: null, name: '', number: 9, x: 30, y: 30 }, // Atacante esquerdo
-  { id: 'pos10', playerId: null, name: '', number: 10, x: 50, y: 25 }, // Atacante central
-  { id: 'pos11', playerId: null, name: '', number: 11, x: 70, y: 30 }, // Atacante direito
-];
+// Posições para cada formação (x, y) - Goleiro sempre na mesma posição
+const FORMATION_POSITIONS: Record<Formacao, Array<{ x: number; y: number }>> = {
+  '4-4-2': [
+    { x: 50, y: 90 }, // GK
+    { x: 15, y: 70 }, { x: 38, y: 75 }, { x: 62, y: 75 }, { x: 85, y: 70 }, // DEF
+    { x: 15, y: 50 }, { x: 38, y: 55 }, { x: 62, y: 55 }, { x: 85, y: 50 }, // MID
+    { x: 35, y: 25 }, { x: 65, y: 25 }, // ATK
+  ],
+  '4-3-3': [
+    { x: 50, y: 90 }, // GK
+    { x: 15, y: 70 }, { x: 38, y: 75 }, { x: 62, y: 75 }, { x: 85, y: 70 }, // DEF
+    { x: 30, y: 55 }, { x: 50, y: 50 }, { x: 70, y: 55 }, // MID
+    { x: 20, y: 25 }, { x: 50, y: 20 }, { x: 80, y: 25 }, // ATK
+  ],
+  '4-2-3-1': [
+    { x: 50, y: 90 }, // GK
+    { x: 15, y: 70 }, { x: 38, y: 75 }, { x: 62, y: 75 }, { x: 85, y: 70 }, // DEF
+    { x: 35, y: 60 }, { x: 65, y: 60 }, // CDM
+    { x: 20, y: 40 }, { x: 50, y: 35 }, { x: 80, y: 40 }, // CAM
+    { x: 50, y: 18 }, // ATK
+  ],
+  '3-5-2': [
+    { x: 50, y: 90 }, // GK
+    { x: 25, y: 75 }, { x: 50, y: 78 }, { x: 75, y: 75 }, // DEF
+    { x: 10, y: 50 }, { x: 30, y: 55 }, { x: 50, y: 50 }, { x: 70, y: 55 }, { x: 90, y: 50 }, // MID
+    { x: 35, y: 22 }, { x: 65, y: 22 }, // ATK
+  ],
+  '4-5-1': [
+    { x: 50, y: 90 }, // GK
+    { x: 15, y: 70 }, { x: 38, y: 75 }, { x: 62, y: 75 }, { x: 85, y: 70 }, // DEF
+    { x: 15, y: 45 }, { x: 35, y: 50 }, { x: 50, y: 45 }, { x: 65, y: 50 }, { x: 85, y: 45 }, // MID
+    { x: 50, y: 20 }, // ATK
+  ],
+  '3-4-3': [
+    { x: 50, y: 90 }, // GK
+    { x: 25, y: 75 }, { x: 50, y: 78 }, { x: 75, y: 75 }, // DEF
+    { x: 20, y: 50 }, { x: 40, y: 55 }, { x: 60, y: 55 }, { x: 80, y: 50 }, // MID
+    { x: 20, y: 25 }, { x: 50, y: 20 }, { x: 80, y: 25 }, // ATK
+  ],
+  '5-3-2': [
+    { x: 50, y: 90 }, // GK
+    { x: 10, y: 68 }, { x: 30, y: 75 }, { x: 50, y: 78 }, { x: 70, y: 75 }, { x: 90, y: 68 }, // DEF
+    { x: 30, y: 50 }, { x: 50, y: 45 }, { x: 70, y: 50 }, // MID
+    { x: 35, y: 22 }, { x: 65, y: 22 }, // ATK
+  ],
+  '5-4-1': [
+    { x: 50, y: 90 }, // GK
+    { x: 10, y: 68 }, { x: 30, y: 75 }, { x: 50, y: 78 }, { x: 70, y: 75 }, { x: 90, y: 68 }, // DEF
+    { x: 20, y: 45 }, { x: 40, y: 50 }, { x: 60, y: 50 }, { x: 80, y: 45 }, // MID
+    { x: 50, y: 20 }, // ATK
+  ],
+  '4-1-4-1': [
+    { x: 50, y: 90 }, // GK
+    { x: 15, y: 70 }, { x: 38, y: 75 }, { x: 62, y: 75 }, { x: 85, y: 70 }, // DEF
+    { x: 50, y: 60 }, // CDM
+    { x: 15, y: 40 }, { x: 38, y: 45 }, { x: 62, y: 45 }, { x: 85, y: 40 }, // MID
+    { x: 50, y: 18 }, // ATK
+  ],
+  '4-3-2-1': [
+    { x: 50, y: 90 }, // GK
+    { x: 15, y: 70 }, { x: 38, y: 75 }, { x: 62, y: 75 }, { x: 85, y: 70 }, // DEF
+    { x: 30, y: 55 }, { x: 50, y: 50 }, { x: 70, y: 55 }, // MID
+    { x: 35, y: 32 }, { x: 65, y: 32 }, // CAM
+    { x: 50, y: 18 }, // ATK
+  ],
+};
+
+// Gerar formação inicial baseada na formação selecionada
+const getFormationPlayers = (formacao: Formacao, currentPlayers?: FieldPlayer[]): FieldPlayer[] => {
+  const positions = FORMATION_POSITIONS[formacao];
+  return positions.map((pos, index) => {
+    const existingPlayer = currentPlayers?.[index];
+    // Sempre usa as novas coordenadas da formação selecionada
+    return {
+      id: `pos${index + 1}`,
+      playerId: existingPlayer?.playerId ?? null,
+      name: existingPlayer?.name ?? '',
+      number: existingPlayer?.playerId ? existingPlayer.number : index + 1,
+      x: pos.x,  // Sempre usa a posição da nova formação
+      y: pos.y,  // Sempre usa a posição da nova formação
+    };
+  });
+};
 
 export default function CriarTaticaPage() {
   const params = useParams();
@@ -77,7 +146,7 @@ export default function CriarTaticaPage() {
   const [nome, setNome] = useState('');
   const [formacao, setFormacao] = useState<Formacao>('4-4-2');
   const [descricao, setDescricao] = useState('');
-  const [fieldPlayers, setFieldPlayers] = useState<FieldPlayer[]>(INITIAL_FORMATION);
+  const [fieldPlayers, setFieldPlayers] = useState<FieldPlayer[]>(() => getFormationPlayers('4-4-2'));
   const [draggingPlayer, setDraggingPlayer] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -141,19 +210,32 @@ export default function CriarTaticaPage() {
 
   // Remover jogador de uma posição
   const removePlayerFromPosition = (positionId: string) => {
-    const position = fieldPlayers.find(fp => fp.id === positionId);
-    if (!position) return;
-    
-    // Encontrar o índice da posição para restaurar o número padrão
-    const posIndex = INITIAL_FORMATION.findIndex(p => p.id === positionId);
-    const defaultNumber = posIndex !== -1 ? INITIAL_FORMATION[posIndex].number : 0;
+    const posIndex = fieldPlayers.findIndex(fp => fp.id === positionId);
+    if (posIndex === -1) return;
     
     setFieldPlayers(prev =>
-      prev.map(fp =>
+      prev.map((fp, idx) =>
         fp.id === positionId
-          ? { ...fp, playerId: null, name: '', number: defaultNumber }
+          ? { ...fp, playerId: null, name: '', number: idx + 1 }
           : fp
       )
+    );
+  };
+
+  // Atualizar posições quando a formação mudar
+  const handleFormacaoChange = (novaFormacao: Formacao) => {
+    setFormacao(novaFormacao);
+    // Reorganizar jogadores para as novas posições da formação
+    const newPositions = FORMATION_POSITIONS[novaFormacao];
+    setFieldPlayers(prev => 
+      newPositions.map((pos, index) => ({
+        id: `pos${index + 1}`,
+        playerId: prev[index]?.playerId ?? null,
+        name: prev[index]?.name ?? '',
+        number: prev[index]?.playerId ? prev[index].number : index + 1,
+        x: pos.x,
+        y: pos.y,
+      }))
     );
   };
 
@@ -312,7 +394,7 @@ export default function CriarTaticaPage() {
                   </label>
                   <select
                     value={formacao}
-                    onChange={(e) => setFormacao(e.target.value as Formacao)}
+                    onChange={(e) => handleFormacaoChange(e.target.value as Formacao)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FF6B00] transition-colors"
                   >
                     {FORMACOES.map((f) => (
