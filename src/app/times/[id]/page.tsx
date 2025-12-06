@@ -2,7 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import { myTeams } from '@/lib/mock-data';
-import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User } from 'lucide-react';
+import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus } from 'lucide-react';
 import { Player } from '@/lib/mock-data';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -12,13 +12,21 @@ import { useViewMode } from '@/hooks/useViewMode';
 
 type Tab = 'resumo' | 'elenco' | 'taticas' | 'fotos' | 'videos';
 
+interface PastaFotos {
+  id: string;
+  timeId: string;
+  nome: string;
+  criadaEm: string;
+}
+
 interface FotoTime {
   id: string;
   timeId: string;
   url: string;
-  titulo: string;
+  titulo?: string;
   data: string;
   descricao?: string;
+  pastaId?: string; // ID da pasta (null = sem pasta)
 }
 
 interface VideoTutorial {
@@ -39,6 +47,11 @@ export default function TeamDetailPage() {
   const { isOwnerMode } = useViewMode();
   const [activeTab, setActiveTab] = useState<Tab>('resumo');
   const [fotos, setFotos] = useState<FotoTime[]>([]);
+  const [pastas, setPastas] = useState<PastaFotos[]>([]);
+  const [pastaAtual, setPastaAtual] = useState<string | null>(null); // null = raiz
+  const [showAddPastaModal, setShowAddPastaModal] = useState(false);
+  const [editingPasta, setEditingPasta] = useState<PastaFotos | null>(null);
+  const [novaPasta, setNovaPasta] = useState('');
   const [videos, setVideos] = useState<VideoTutorial[]>([]);
   const [showAddFotoModal, setShowAddFotoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
@@ -49,11 +62,12 @@ export default function TeamDetailPage() {
   const [editingVideo, setEditingVideo] = useState<VideoTutorial | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [newFoto, setNewFoto] = useState({
     titulo: '',
-    url: '',
-    descricao: '',
-    data: new Date().toISOString().split('T')[0]
+    descricao: ''
   });
   const [videoFormData, setVideoFormData] = useState({
     titulo: '',
@@ -96,6 +110,13 @@ export default function TeamDetailPage() {
 
   const positions = ['Goleiro', 'Zagueiro', 'Lateral', 'Volante', 'Meio-Campo', 'Meia', 'Atacante', 'Ponta'];
   const preferredFootOptions = ['Direito', 'Esquerdo', 'Ambos'] as const;
+  
+  // Estado para evitar erro de hidratação
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Carregar fotos do localStorage
   useEffect(() => {
@@ -103,6 +124,11 @@ export default function TeamDetailPage() {
       const storedFotos = localStorage.getItem(`fotos_${team.id}`);
       if (storedFotos) {
         setFotos(JSON.parse(storedFotos));
+      }
+      // Carregar pastas
+      const storedPastas = localStorage.getItem(`pastas_fotos_${team.id}`);
+      if (storedPastas) {
+        setPastas(JSON.parse(storedPastas));
       }
     }
   }, [team]);
@@ -266,27 +292,110 @@ export default function TeamDetailPage() {
     return matchesSearch && matchesPosition && matchesAvailability;
   });
 
-  const handleAddFoto = () => {
-    if (!team || !newFoto.titulo || !newFoto.url) return;
-
-    const foto: FotoTime = {
-      id: Date.now().toString(),
-      timeId: team.id,
-      titulo: newFoto.titulo,
-      url: newFoto.url,
-      data: newFoto.data,
-      descricao: newFoto.descricao
-    };
-
-    saveFotos([...fotos, foto]);
-    setShowAddFotoModal(false);
-    setNewFoto({
-      titulo: '',
-      url: '',
-      descricao: '',
-      data: new Date().toISOString().split('T')[0]
-    });
+  // Handler para seleção de arquivo
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFotoFile(file);
+      // Criar preview local
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
+
+  const handleAddFoto = async () => {
+    if (!team || !fotoFile) return;
+
+    setUploadingFoto(true);
+    
+    try {
+      // TODO: Implementar upload para Supabase Storage
+      // Por enquanto, usar o preview local como URL temporária
+      // Quando integrar com Supabase:
+      // const { data, error } = await supabase.storage
+      //   .from('fotos-times')
+      //   .upload(`${team.id}/${Date.now()}-${fotoFile.name}`, fotoFile);
+      // const url = supabase.storage.from('fotos-times').getPublicUrl(data.path).data.publicUrl;
+      
+      const foto: FotoTime = {
+        id: Date.now().toString(),
+        timeId: team.id,
+        titulo: newFoto.titulo || undefined,
+        url: fotoPreview || '', // Temporário: usar preview. Substituir por URL do Supabase
+        data: new Date().toISOString().split('T')[0],
+        descricao: newFoto.descricao || undefined,
+        pastaId: pastaAtual || undefined
+      };
+
+      saveFotos([...fotos, foto]);
+      setShowAddFotoModal(false);
+      setNewFoto({ titulo: '', descricao: '' });
+      setFotoFile(null);
+      setFotoPreview(null);
+    } catch (error) {
+      console.error('Erro ao fazer upload:', error);
+      alert('Erro ao fazer upload da foto. Tente novamente.');
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
+
+  // Funções para gerenciar pastas
+  const savePastas = (newPastas: PastaFotos[]) => {
+    setPastas(newPastas);
+    localStorage.setItem(`pastas_fotos_${params.id}`, JSON.stringify(newPastas));
+  };
+
+  const handleAddPasta = () => {
+    if (!team || !novaPasta.trim()) return;
+
+    if (editingPasta) {
+      // Editando pasta existente
+      const pastasAtualizadas = pastas.map(p =>
+        p.id === editingPasta.id ? { ...p, nome: novaPasta.trim() } : p
+      );
+      savePastas(pastasAtualizadas);
+    } else {
+      // Criando nova pasta
+      const pasta: PastaFotos = {
+        id: Date.now().toString(),
+        timeId: team.id,
+        nome: novaPasta.trim(),
+        criadaEm: new Date().toISOString()
+      };
+      savePastas([...pastas, pasta]);
+    }
+
+    setShowAddPastaModal(false);
+    setEditingPasta(null);
+    setNovaPasta('');
+  };
+
+  const handleEditPasta = (pasta: PastaFotos) => {
+    setEditingPasta(pasta);
+    setNovaPasta(pasta.nome);
+    setShowAddPastaModal(true);
+  };
+
+  const handleRemovePasta = (pastaId: string) => {
+    if (confirm('Excluir esta pasta? As fotos dentro dela serão movidas para a raiz.')) {
+      // Move fotos da pasta para raiz
+      const fotosAtualizadas = fotos.map(f => 
+        f.pastaId === pastaId ? { ...f, pastaId: undefined } : f
+      );
+      saveFotos(fotosAtualizadas);
+      savePastas(pastas.filter(p => p.id !== pastaId));
+      if (pastaAtual === pastaId) setPastaAtual(null);
+    }
+  };
+
+  // Fotos filtradas pela pasta atual
+  const fotosFiltradas = fotos.filter(f => 
+    pastaAtual ? f.pastaId === pastaAtual : !f.pastaId
+  );
 
   const handleRemoveFoto = (id: string) => {
     saveFotos(fotos.filter(f => f.id !== id));
@@ -754,7 +863,7 @@ export default function TeamDetailPage() {
                   {/* Nome do Capitão */}
                   <div className="mt-4 text-center">
                     <div className="text-white font-bold text-lg">
-                      {capitaoNome || team.players[0]?.name || 'Selecione o Capitão'}
+                      {mounted ? (capitaoNome || team.players[0]?.name || 'Selecione o Capitão') : 'Capitão'}
                     </div>
                     <div className="text-[#FF6B00] text-sm font-medium">
                       {team.players[0]?.position || 'Capitão'}
@@ -967,71 +1076,153 @@ export default function TeamDetailPage() {
 
         {activeTab === 'fotos' && (
           <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Galeria de Fotos – {team.name}
-              </h2>
-              <button
-                onClick={() => setShowAddFotoModal(true)}
-                className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-2 px-4 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2"
-              >
-                <ImageIcon className="w-5 h-5" />
-                Adicionar Foto
-              </button>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Galeria de Fotos – {team.name}
+                </h2>
+                {pastaAtual && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => setPastaAtual(null)}
+                      className="text-[#FF6B00] hover:text-[#FF6B00]/80 text-sm flex items-center gap-1"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Voltar
+                    </button>
+                    <span className="text-white/60">|</span>
+                    <span className="text-white/80 font-medium">
+                      📁 {pastas.find(p => p.id === pastaAtual)?.nome}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAddPastaModal(true)}
+                  className="bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-xl transition-all flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nova Pasta
+                </button>
+                <button
+                  onClick={() => setShowAddFotoModal(true)}
+                  className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-2 px-4 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2"
+                >
+                  <Upload className="w-5 h-5" />
+                  Adicionar Foto
+                </button>
+              </div>
             </div>
 
-            {fotos.length === 0 ? (
+            {/* Pastas (só mostra na raiz) */}
+            {!pastaAtual && pastas.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-white/60 text-sm font-medium mb-3">Pastas</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {pastas.map((pasta) => {
+                    const fotosNaPasta = fotos.filter(f => f.pastaId === pasta.id).length;
+                    return (
+                      <div
+                        key={pasta.id}
+                        className="bg-white/5 hover:bg-white/10 rounded-xl p-4 cursor-pointer transition-all group relative"
+                        onClick={() => setPastaAtual(pasta.id)}
+                      >
+                        <div className="text-4xl mb-2">📁</div>
+                        <h4 className="text-white font-medium truncate">{pasta.nome}</h4>
+                        <p className="text-white/40 text-sm">{fotosNaPasta} foto{fotosNaPasta !== 1 ? 's' : ''}</p>
+                        
+                        {/* Botões de ação */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-1 transition-all">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditPasta(pasta);
+                            }}
+                            className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded-lg transition-all"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemovePasta(pasta.id);
+                            }}
+                            className="bg-red-500/20 hover:bg-red-500/40 text-red-400 p-1.5 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Fotos */}
+            {fotosFiltradas.length === 0 && (!pastaAtual ? pastas.length === 0 : true) ? (
               <div className="text-center py-16">
                 <ImageIcon className="w-20 h-20 text-white/20 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">Nenhuma foto cadastrada</h3>
-                <p className="text-white/60 mb-6">Comece adicionando a primeira foto do seu time!</p>
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {pastaAtual ? 'Pasta vazia' : 'Nenhuma foto cadastrada'}
+                </h3>
+                <p className="text-white/60 mb-6">
+                  {pastaAtual ? 'Adicione fotos a esta pasta!' : 'Comece adicionando a primeira foto do seu time!'}
+                </p>
                 <button
                   onClick={() => setShowAddFotoModal(true)}
                   className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)]"
                 >
-                  Adicionar Primeira Foto
+                  Adicionar Foto
                 </button>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {fotos.map((foto) => (
-                  <div key={foto.id} className="bg-white/5 rounded-xl overflow-hidden hover:bg-white/10 transition-all group">
-                    <div className="aspect-video bg-white/10 relative overflow-hidden">
-                      <img 
-                        src={foto.url} 
-                        alt={foto.titulo}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400&h=300&fit=crop';
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => handleViewFoto(foto)}
-                          className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white p-3 rounded-lg transition-all"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleRemoveFoto(foto.id)}
-                          className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg transition-all"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+            ) : fotosFiltradas.length > 0 && (
+              <>
+                {!pastaAtual && pastas.length > 0 && (
+                  <h3 className="text-white/60 text-sm font-medium mb-3">Fotos sem pasta</h3>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {fotosFiltradas.map((foto) => (
+                    <div key={foto.id} className="bg-white/5 rounded-xl overflow-hidden hover:bg-white/10 transition-all group">
+                      <div className="aspect-video bg-white/10 relative overflow-hidden">
+                        <img 
+                          src={foto.url} 
+                          alt={foto.titulo || 'Foto'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400&h=300&fit=crop';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                          <button
+                            onClick={() => handleViewFoto(foto)}
+                            className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white p-3 rounded-lg transition-all"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveFoto(foto.id)}
+                            className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        {foto.titulo && <h3 className="text-white font-bold mb-1">{foto.titulo}</h3>}
+                        <p className="text-white/60 text-sm mb-2">
+                          {new Date(foto.data).toLocaleDateString('pt-BR')}
+                        </p>
+                        {foto.descricao && (
+                          <p className="text-white/40 text-sm line-clamp-2">{foto.descricao}</p>
+                        )}
                       </div>
                     </div>
-                    <div className="p-4">
-                      <h3 className="text-white font-bold mb-1">{foto.titulo}</h3>
-                      <p className="text-white/60 text-sm mb-2">
-                        {new Date(foto.data).toLocaleDateString('pt-BR')}
-                      </p>
-                      {foto.descricao && (
-                        <p className="text-white/40 text-sm line-clamp-2">{foto.descricao}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1155,6 +1346,62 @@ export default function TeamDetailPage() {
         )}
       </main>
 
+      {/* Modal Criar/Editar Pasta */}
+      {showAddPastaModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {editingPasta ? 'Editar Pasta' : 'Nova Pasta'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddPastaModal(false);
+                  setEditingPasta(null);
+                  setNovaPasta('');
+                }}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Nome da Pasta *</label>
+                <input
+                  type="text"
+                  value={novaPasta}
+                  onChange={(e) => setNovaPasta(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  placeholder="Ex: Bola de domingo"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddPastaModal(false);
+                  setEditingPasta(null);
+                  setNovaPasta('');
+                }}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddPasta}
+                disabled={!novaPasta.trim()}
+                className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {editingPasta ? 'Salvar' : 'Criar Pasta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Adicionar Foto */}
       {showAddFotoModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
@@ -1162,6 +1409,11 @@ export default function TeamDetailPage() {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 Adicionar Foto
+                {pastaAtual && (
+                  <span className="text-base font-normal text-white/60 ml-2">
+                    em 📁 {pastas.find(p => p.id === pastaAtual)?.nome}
+                  </span>
+                )}
               </h3>
               <button
                 onClick={() => setShowAddFotoModal(false)}
@@ -1172,47 +1424,61 @@ export default function TeamDetailPage() {
             </div>
 
             <div className="space-y-4">
+              {/* Info: Data automática */}
+              <div className="bg-[#FF6B00]/10 border border-[#FF6B00]/20 rounded-lg p-3 text-sm text-white/80">
+                📅 A data será registrada automaticamente como a data de hoje
+              </div>
+
+              {/* Upload de Imagem */}
               <div>
-                <label className="block text-white/80 mb-2 font-medium">Título *</label>
+                <label className="block text-white/80 mb-2 font-medium">Imagem *</label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="foto-upload"
+                  />
+                  <label
+                    htmlFor="foto-upload"
+                    className="flex flex-col items-center justify-center w-full h-40 bg-white/5 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:bg-white/10 hover:border-[#FF6B00]/50 transition-all"
+                  >
+                    {fotoPreview ? (
+                      <div className="relative w-full h-full">
+                        <img 
+                          src={fotoPreview} 
+                          alt="Preview"
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity rounded-lg">
+                          <span className="text-white text-sm">Clique para trocar</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-10 h-10 text-white/40 mb-2" />
+                        <span className="text-white/60 text-sm">Clique para selecionar uma imagem</span>
+                        <span className="text-white/40 text-xs mt-1">JPG, PNG, GIF até 10MB</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+                {fotoFile && (
+                  <p className="text-white/60 text-xs mt-2">
+                    📎 {fotoFile.name} ({(fotoFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Título (opcional)</label>
                 <input
                   type="text"
                   value={newFoto.titulo}
                   onChange={(e) => setNewFoto({ ...newFoto, titulo: e.target.value })}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
                   placeholder="Ex: Treino de Finalizações"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white/80 mb-2 font-medium">URL da Imagem *</label>
-                <input
-                  type="url"
-                  value={newFoto.url}
-                  onChange={(e) => setNewFoto({ ...newFoto, url: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
-                  placeholder="https://exemplo.com/imagem.jpg"
-                />
-                {newFoto.url && (
-                  <div className="mt-3 aspect-video bg-white/5 rounded-lg overflow-hidden">
-                    <img 
-                      src={newFoto.url} 
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-white/80 mb-2 font-medium">Data</label>
-                <input
-                  type="date"
-                  value={newFoto.data}
-                  onChange={(e) => setNewFoto({ ...newFoto, data: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
                 />
               </div>
 
@@ -1230,17 +1496,29 @@ export default function TeamDetailPage() {
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowAddFotoModal(false)}
+                onClick={() => {
+                  setShowAddFotoModal(false);
+                  setFotoFile(null);
+                  setFotoPreview(null);
+                  setNewFoto({ titulo: '', descricao: '' });
+                }}
                 className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleAddFoto}
-                disabled={!newFoto.titulo || !newFoto.url}
-                className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!fotoFile || uploadingFoto}
+                className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Salvar
+                {uploadingFoto ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  'Salvar'
+                )}
               </button>
             </div>
           </div>
@@ -1253,7 +1531,7 @@ export default function TeamDetailPage() {
           <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                {selectedFoto.titulo}
+                {selectedFoto.titulo || 'Foto'}
               </h3>
               <button
                 onClick={() => setShowFotoModal(false)}
@@ -1266,7 +1544,7 @@ export default function TeamDetailPage() {
             <div className="mb-6">
               <img 
                 src={selectedFoto.url} 
-                alt={selectedFoto.titulo}
+                alt={selectedFoto.titulo || 'Foto'}
                 className="w-full rounded-xl"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&h=600&fit=crop';
