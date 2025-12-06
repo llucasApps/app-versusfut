@@ -63,8 +63,8 @@ export default function TeamDetailPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
   const [uploadingFoto, setUploadingFoto] = useState(false);
-  const [fotoFile, setFotoFile] = useState<File | null>(null);
-  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [fotoFiles, setFotoFiles] = useState<File[]>([]);
+  const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [newFoto, setNewFoto] = useState({
     titulo: '',
     descricao: ''
@@ -292,52 +292,64 @@ export default function TeamDetailPage() {
     return matchesSearch && matchesPosition && matchesAvailability;
   });
 
-  // Handler para seleção de arquivo
+  // Handler para seleção de arquivos (múltiplos)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFotoFile(file);
-      // Criar preview local
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newFiles = Array.from(files);
+      setFotoFiles(prev => [...prev, ...newFiles]);
+      
+      // Criar previews para cada arquivo
+      newFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFotoPreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
   };
 
+  // Handler para remover uma foto da seleção
+  const handleRemoveFileFromSelection = (index: number) => {
+    setFotoFiles(prev => prev.filter((_, i) => i !== index));
+    setFotoPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleAddFoto = async () => {
-    if (!team || !fotoFile) return;
+    if (!team || fotoFiles.length === 0) return;
 
     setUploadingFoto(true);
     
     try {
       // TODO: Implementar upload para Supabase Storage
-      // Por enquanto, usar o preview local como URL temporária
       // Quando integrar com Supabase:
-      // const { data, error } = await supabase.storage
-      //   .from('fotos-times')
-      //   .upload(`${team.id}/${Date.now()}-${fotoFile.name}`, fotoFile);
-      // const url = supabase.storage.from('fotos-times').getPublicUrl(data.path).data.publicUrl;
+      // for (const file of fotoFiles) {
+      //   const { data, error } = await supabase.storage
+      //     .from('fotos-times')
+      //     .upload(`${team.id}/${Date.now()}-${file.name}`, file);
+      //   const url = supabase.storage.from('fotos-times').getPublicUrl(data.path).data.publicUrl;
+      // }
       
-      const foto: FotoTime = {
-        id: Date.now().toString(),
+      // Criar uma foto para cada arquivo
+      const novasFotos: FotoTime[] = fotoFiles.map((file, index) => ({
+        id: `${Date.now()}-${index}`,
         timeId: team.id,
-        titulo: newFoto.titulo || undefined,
-        url: fotoPreview || '', // Temporário: usar preview. Substituir por URL do Supabase
+        titulo: fotoFiles.length === 1 ? (newFoto.titulo || undefined) : undefined,
+        url: fotoPreviews[index] || '', // Temporário: usar preview. Substituir por URL do Supabase
         data: new Date().toISOString().split('T')[0],
-        descricao: newFoto.descricao || undefined,
+        descricao: fotoFiles.length === 1 ? (newFoto.descricao || undefined) : undefined,
         pastaId: pastaAtual || undefined
-      };
+      }));
 
-      saveFotos([...fotos, foto]);
+      saveFotos([...fotos, ...novasFotos]);
       setShowAddFotoModal(false);
       setNewFoto({ titulo: '', descricao: '' });
-      setFotoFile(null);
-      setFotoPreview(null);
+      setFotoFiles([]);
+      setFotoPreviews([]);
     } catch (error) {
       console.error('Erro ao fazer upload:', error);
-      alert('Erro ao fazer upload da foto. Tente novamente.');
+      alert('Erro ao fazer upload das fotos. Tente novamente.');
     } finally {
       setUploadingFoto(false);
     }
@@ -1429,77 +1441,109 @@ export default function TeamDetailPage() {
                 📅 A data será registrada automaticamente como a data de hoje
               </div>
 
-              {/* Upload de Imagem */}
+              {/* Upload de Imagens (múltiplas) */}
               <div>
-                <label className="block text-white/80 mb-2 font-medium">Imagem *</label>
+                <label className="block text-white/80 mb-2 font-medium">
+                  Imagens * <span className="text-white/40 font-normal">(você pode selecionar várias)</span>
+                </label>
                 <div className="relative">
                   <input
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={handleFileSelect}
                     className="hidden"
                     id="foto-upload"
                   />
                   <label
                     htmlFor="foto-upload"
-                    className="flex flex-col items-center justify-center w-full h-40 bg-white/5 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:bg-white/10 hover:border-[#FF6B00]/50 transition-all"
+                    className="flex flex-col items-center justify-center w-full h-32 bg-white/5 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:bg-white/10 hover:border-[#FF6B00]/50 transition-all"
                   >
-                    {fotoPreview ? (
-                      <div className="relative w-full h-full">
-                        <img 
-                          src={fotoPreview} 
-                          alt="Preview"
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity rounded-lg">
-                          <span className="text-white text-sm">Clique para trocar</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="w-10 h-10 text-white/40 mb-2" />
-                        <span className="text-white/60 text-sm">Clique para selecionar uma imagem</span>
-                        <span className="text-white/40 text-xs mt-1">JPG, PNG, GIF até 10MB</span>
-                      </>
-                    )}
+                    <Upload className="w-8 h-8 text-white/40 mb-2" />
+                    <span className="text-white/60 text-sm">Clique ou arraste imagens aqui</span>
+                    <span className="text-white/40 text-xs mt-1">JPG, PNG, GIF até 10MB cada</span>
                   </label>
                 </div>
-                {fotoFile && (
-                  <p className="text-white/60 text-xs mt-2">
-                    📎 {fotoFile.name} ({(fotoFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
+
+                {/* Preview das imagens selecionadas */}
+                {fotoPreviews.length > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white/60 text-sm">{fotoFiles.length} foto{fotoFiles.length !== 1 ? 's' : ''} selecionada{fotoFiles.length !== 1 ? 's' : ''}</span>
+                      <button
+                        onClick={() => {
+                          setFotoFiles([]);
+                          setFotoPreviews([]);
+                        }}
+                        className="text-red-400 text-xs hover:text-red-300 transition-colors"
+                      >
+                        Limpar todas
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                      {fotoPreviews.map((preview, index) => (
+                        <div key={index} className="relative aspect-square group">
+                          <img 
+                            src={preview} 
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                          <button
+                            onClick={() => handleRemoveFileFromSelection(index)}
+                            className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                          <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                            {(fotoFiles[index]?.size / 1024 / 1024).toFixed(1)}MB
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
-              <div>
-                <label className="block text-white/80 mb-2 font-medium">Título (opcional)</label>
-                <input
-                  type="text"
-                  value={newFoto.titulo}
-                  onChange={(e) => setNewFoto({ ...newFoto, titulo: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
-                  placeholder="Ex: Treino de Finalizações"
-                />
-              </div>
+              {/* Título e descrição só aparecem se for uma única foto */}
+              {fotoFiles.length <= 1 && (
+                <>
+                  <div>
+                    <label className="block text-white/80 mb-2 font-medium">Título (opcional)</label>
+                    <input
+                      type="text"
+                      value={newFoto.titulo}
+                      onChange={(e) => setNewFoto({ ...newFoto, titulo: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                      placeholder="Ex: Treino de Finalizações"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-white/80 mb-2 font-medium">Descrição (opcional)</label>
-                <textarea
-                  value={newFoto.descricao}
-                  onChange={(e) => setNewFoto({ ...newFoto, descricao: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none resize-none"
-                  rows={3}
-                  placeholder="Adicione uma descrição para a foto..."
-                />
-              </div>
+                  <div>
+                    <label className="block text-white/80 mb-2 font-medium">Descrição (opcional)</label>
+                    <textarea
+                      value={newFoto.descricao}
+                      onChange={(e) => setNewFoto({ ...newFoto, descricao: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none resize-none"
+                      rows={3}
+                      placeholder="Adicione uma descrição para a foto..."
+                    />
+                  </div>
+                </>
+              )}
+
+              {fotoFiles.length > 1 && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-white/60">
+                  💡 Ao adicionar múltiplas fotos, título e descrição não são aplicados. Você pode editar cada foto depois.
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
                   setShowAddFotoModal(false);
-                  setFotoFile(null);
-                  setFotoPreview(null);
+                  setFotoFiles([]);
+                  setFotoPreviews([]);
                   setNewFoto({ titulo: '', descricao: '' });
                 }}
                 className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
@@ -1508,7 +1552,7 @@ export default function TeamDetailPage() {
               </button>
               <button
                 onClick={handleAddFoto}
-                disabled={!fotoFile || uploadingFoto}
+                disabled={fotoFiles.length === 0 || uploadingFoto}
                 className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {uploadingFoto ? (
