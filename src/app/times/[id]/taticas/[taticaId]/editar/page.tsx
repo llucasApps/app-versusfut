@@ -331,7 +331,7 @@ export default function EditarTaticaPage() {
             </div>
 
             {/* Jogadores Escalados */}
-            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+            {/* <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
               <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                 <Users className="w-5 h-5 text-[#FF6B00]" />
                 Escalação ({fieldPlayers.filter(p => p.playerId).length}/11)
@@ -360,7 +360,7 @@ export default function EditarTaticaPage() {
                   </p>
                 )}
               </div>
-            </div>
+            </div> */}
 
             {/* Actions */}
             <div className="flex gap-3">

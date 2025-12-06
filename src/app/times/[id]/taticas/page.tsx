@@ -7,6 +7,15 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
+interface FieldPlayer {
+  id: string;
+  playerId: string | null;
+  name: string;
+  number: number;
+  x: number;
+  y: number;
+}
+
 interface Tatica {
   id: string;
   timeId: string;
@@ -14,7 +23,7 @@ interface Tatica {
   descricao: string;
   tipo: 'Ofensiva' | 'Defensiva' | 'Bola parada';
   layoutJson: {
-    players: Array<{ id: number; x: number; y: number }>;
+    players: FieldPlayer[];
   };
 }
 
@@ -119,14 +128,18 @@ export default function TaticasPage() {
                     {tatica.layoutJson.players.map((player) => (
                       <div
                         key={player.id}
-                        className="absolute w-4 h-4 bg-[#FF6B00] rounded-full border-2 border-white shadow-lg flex items-center justify-center text-[8px] font-bold text-white"
+                        className={`absolute w-5 h-5 rounded-full border-2 shadow-lg flex items-center justify-center text-[8px] font-bold text-white ${
+                          player.playerId 
+                            ? 'bg-[#FF6B00] border-white' 
+                            : 'bg-white/30 border-white/50 border-dashed'
+                        }`}
                         style={{
                           left: `${player.x}%`,
                           top: `${player.y}%`,
                           transform: 'translate(-50%, -50%)'
                         }}
                       >
-                        {player.id}
+                        {player.number}
                       </div>
                     ))}
                   </div>
