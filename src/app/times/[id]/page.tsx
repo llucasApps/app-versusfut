@@ -12,7 +12,7 @@ import { useViewMode } from '@/hooks/useViewMode';
 
 type Tab = 'resumo' | 'elenco' | 'taticas' | 'fotos' | 'videos';
 
-interface PastaFotos {
+interface Pasta {
   id: string;
   timeId: string;
   nome: string;
@@ -26,17 +26,17 @@ interface FotoTime {
   titulo?: string;
   data: string;
   descricao?: string;
-  pastaId?: string; // ID da pasta (null = sem pasta)
+  pastaId?: string;
 }
 
 interface VideoTutorial {
   id: string;
   timeId: string;
-  titulo: string;
-  descricao: string;
+  titulo?: string;
+  descricao?: string;
   urlEmbed: string;
-  categoria: string;
-  duracao: string;
+  categoria?: string;
+  pastaId?: string;
 }
 
 const categorias = ['Finalização', 'Tática', 'Preparação Física', 'Passe', 'Defesa', 'Drible'];
@@ -47,12 +47,19 @@ export default function TeamDetailPage() {
   const { isOwnerMode } = useViewMode();
   const [activeTab, setActiveTab] = useState<Tab>('resumo');
   const [fotos, setFotos] = useState<FotoTime[]>([]);
-  const [pastas, setPastas] = useState<PastaFotos[]>([]);
-  const [pastaAtual, setPastaAtual] = useState<string | null>(null); // null = raiz
-  const [showAddPastaModal, setShowAddPastaModal] = useState(false);
-  const [editingPasta, setEditingPasta] = useState<PastaFotos | null>(null);
-  const [novaPasta, setNovaPasta] = useState('');
+  const [pastasFotos, setPastasFotos] = useState<Pasta[]>([]);
+  const [pastaFotosAtual, setPastaFotosAtual] = useState<string | null>(null);
+  const [showAddPastaFotosModal, setShowAddPastaFotosModal] = useState(false);
+  const [editingPastaFotos, setEditingPastaFotos] = useState<Pasta | null>(null);
+  const [novaPastaFotos, setNovaPastaFotos] = useState('');
+  
   const [videos, setVideos] = useState<VideoTutorial[]>([]);
+  const [pastasVideos, setPastasVideos] = useState<Pasta[]>([]);
+  const [pastaVideosAtual, setPastaVideosAtual] = useState<string | null>(null);
+  const [showAddPastaVideosModal, setShowAddPastaVideosModal] = useState(false);
+  const [editingPastaVideos, setEditingPastaVideos] = useState<Pasta | null>(null);
+  const [novaPastaVideos, setNovaPastaVideos] = useState('');
+  
   const [showAddFotoModal, setShowAddFotoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
   const [selectedFoto, setSelectedFoto] = useState<FotoTime | null>(null);
@@ -73,8 +80,7 @@ export default function TeamDetailPage() {
     titulo: '',
     descricao: '',
     urlEmbed: '',
-    categoria: 'Finalização',
-    duracao: ''
+    categoria: ''
   });
   const [capitaoFoto, setCapitaoFoto] = useState<string | null>(null);
   const [capitaoNome, setCapitaoNome] = useState<string>('');
@@ -125,20 +131,25 @@ export default function TeamDetailPage() {
       if (storedFotos) {
         setFotos(JSON.parse(storedFotos));
       }
-      // Carregar pastas
-      const storedPastas = localStorage.getItem(`pastas_fotos_${team.id}`);
-      if (storedPastas) {
-        setPastas(JSON.parse(storedPastas));
+      // Carregar pastas de fotos
+      const storedPastasFotos = localStorage.getItem(`pastas_fotos_${team.id}`);
+      if (storedPastasFotos) {
+        setPastasFotos(JSON.parse(storedPastasFotos));
       }
     }
   }, [team]);
 
-  // Carregar vídeos do localStorage
+  // Carregar vídeos e pastas de vídeos do localStorage
   useEffect(() => {
     if (team) {
       const storedVideos = localStorage.getItem(`videos_${team.id}`);
       if (storedVideos) {
         setVideos(JSON.parse(storedVideos));
+      }
+      // Carregar pastas de vídeos
+      const storedPastasVideos = localStorage.getItem(`pastas_videos_${team.id}`);
+      if (storedPastasVideos) {
+        setPastasVideos(JSON.parse(storedPastasVideos));
       }
     }
   }, [team]);
@@ -339,7 +350,7 @@ export default function TeamDetailPage() {
         url: fotoPreviews[index] || '', // Temporário: usar preview. Substituir por URL do Supabase
         data: new Date().toISOString().split('T')[0],
         descricao: fotoFiles.length === 1 ? (newFoto.descricao || undefined) : undefined,
-        pastaId: pastaAtual || undefined
+        pastaId: pastaFotosAtual || undefined
       }));
 
       saveFotos([...fotos, ...novasFotos]);
@@ -355,58 +366,101 @@ export default function TeamDetailPage() {
     }
   };
 
-  // Funções para gerenciar pastas
-  const savePastas = (newPastas: PastaFotos[]) => {
-    setPastas(newPastas);
+  // Funções para gerenciar pastas de fotos
+  const savePastasFotos = (newPastas: Pasta[]) => {
+    setPastasFotos(newPastas);
     localStorage.setItem(`pastas_fotos_${params.id}`, JSON.stringify(newPastas));
   };
 
-  const handleAddPasta = () => {
-    if (!team || !novaPasta.trim()) return;
+  const handleAddPastaFotos = () => {
+    if (!team || !novaPastaFotos.trim()) return;
 
-    if (editingPasta) {
-      // Editando pasta existente
-      const pastasAtualizadas = pastas.map(p =>
-        p.id === editingPasta.id ? { ...p, nome: novaPasta.trim() } : p
+    if (editingPastaFotos) {
+      const pastasAtualizadas = pastasFotos.map((p: Pasta) =>
+        p.id === editingPastaFotos.id ? { ...p, nome: novaPastaFotos.trim() } : p
       );
-      savePastas(pastasAtualizadas);
+      savePastasFotos(pastasAtualizadas);
     } else {
-      // Criando nova pasta
-      const pasta: PastaFotos = {
+      const pasta: Pasta = {
         id: Date.now().toString(),
         timeId: team.id,
-        nome: novaPasta.trim(),
+        nome: novaPastaFotos.trim(),
         criadaEm: new Date().toISOString()
       };
-      savePastas([...pastas, pasta]);
+      savePastasFotos([...pastasFotos, pasta]);
     }
 
-    setShowAddPastaModal(false);
-    setEditingPasta(null);
-    setNovaPasta('');
+    setShowAddPastaFotosModal(false);
+    setEditingPastaFotos(null);
+    setNovaPastaFotos('');
   };
 
-  const handleEditPasta = (pasta: PastaFotos) => {
-    setEditingPasta(pasta);
-    setNovaPasta(pasta.nome);
-    setShowAddPastaModal(true);
+  const handleEditPastaFotos = (pasta: Pasta) => {
+    setEditingPastaFotos(pasta);
+    setNovaPastaFotos(pasta.nome);
+    setShowAddPastaFotosModal(true);
   };
 
-  const handleRemovePasta = (pastaId: string) => {
+  const handleRemovePastaFotos = (pastaId: string) => {
     if (confirm('Excluir esta pasta? As fotos dentro dela serão movidas para a raiz.')) {
-      // Move fotos da pasta para raiz
       const fotosAtualizadas = fotos.map(f => 
         f.pastaId === pastaId ? { ...f, pastaId: undefined } : f
       );
       saveFotos(fotosAtualizadas);
-      savePastas(pastas.filter(p => p.id !== pastaId));
-      if (pastaAtual === pastaId) setPastaAtual(null);
+      savePastasFotos(pastasFotos.filter((p: Pasta) => p.id !== pastaId));
+      if (pastaFotosAtual === pastaId) setPastaFotosAtual(null);
+    }
+  };
+
+  // Funções para gerenciar pastas de vídeos
+  const savePastasVideos = (newPastas: Pasta[]) => {
+    setPastasVideos(newPastas);
+    localStorage.setItem(`pastas_videos_${params.id}`, JSON.stringify(newPastas));
+  };
+
+  const handleAddPastaVideos = () => {
+    if (!team || !novaPastaVideos.trim()) return;
+
+    if (editingPastaVideos) {
+      const pastasAtualizadas = pastasVideos.map((p: Pasta) =>
+        p.id === editingPastaVideos.id ? { ...p, nome: novaPastaVideos.trim() } : p
+      );
+      savePastasVideos(pastasAtualizadas);
+    } else {
+      const pasta: Pasta = {
+        id: Date.now().toString(),
+        timeId: team.id,
+        nome: novaPastaVideos.trim(),
+        criadaEm: new Date().toISOString()
+      };
+      savePastasVideos([...pastasVideos, pasta]);
+    }
+
+    setShowAddPastaVideosModal(false);
+    setEditingPastaVideos(null);
+    setNovaPastaVideos('');
+  };
+
+  const handleEditPastaVideos = (pasta: Pasta) => {
+    setEditingPastaVideos(pasta);
+    setNovaPastaVideos(pasta.nome);
+    setShowAddPastaVideosModal(true);
+  };
+
+  const handleRemovePastaVideos = (pastaId: string) => {
+    if (confirm('Excluir esta pasta? Os vídeos dentro dela serão movidos para a raiz.')) {
+      const videosAtualizados = videos.map(v => 
+        v.pastaId === pastaId ? { ...v, pastaId: undefined } : v
+      );
+      saveVideos(videosAtualizados);
+      savePastasVideos(pastasVideos.filter((p: Pasta) => p.id !== pastaId));
+      if (pastaVideosAtual === pastaId) setPastaVideosAtual(null);
     }
   };
 
   // Fotos filtradas pela pasta atual
   const fotosFiltradas = fotos.filter(f => 
-    pastaAtual ? f.pastaId === pastaAtual : !f.pastaId
+    pastaFotosAtual ? f.pastaId === pastaFotosAtual : !f.pastaId
   );
 
   const handleRemoveFoto = (id: string) => {
@@ -420,12 +474,16 @@ export default function TeamDetailPage() {
   };
 
   const handleAddVideo = () => {
-    if (!team || !videoFormData.titulo || !videoFormData.urlEmbed) return;
+    if (!team || !videoFormData.urlEmbed) return;
 
     const newVideo: VideoTutorial = {
       id: Date.now().toString(),
       timeId: team.id,
-      ...videoFormData
+      titulo: videoFormData.titulo || undefined,
+      descricao: videoFormData.descricao || undefined,
+      urlEmbed: videoFormData.urlEmbed,
+      categoria: videoFormData.categoria || undefined,
+      pastaId: pastaVideosAtual || undefined
     };
 
     saveVideos([...videos, newVideo]);
@@ -433,10 +491,16 @@ export default function TeamDetailPage() {
   };
 
   const handleEditVideo = () => {
-    if (!editingVideo || !videoFormData.titulo || !videoFormData.urlEmbed) return;
+    if (!editingVideo || !videoFormData.urlEmbed) return;
 
     const updatedVideos = videos.map(v => 
-      v.id === editingVideo.id ? { ...editingVideo, ...videoFormData } : v
+      v.id === editingVideo.id ? { 
+        ...editingVideo, 
+        titulo: videoFormData.titulo || undefined,
+        descricao: videoFormData.descricao || undefined,
+        urlEmbed: videoFormData.urlEmbed,
+        categoria: videoFormData.categoria || undefined
+      } : v
     );
 
     saveVideos(updatedVideos);
@@ -451,11 +515,10 @@ export default function TeamDetailPage() {
   const openEditVideoModal = (video: VideoTutorial) => {
     setEditingVideo(video);
     setVideoFormData({
-      titulo: video.titulo,
-      descricao: video.descricao,
+      titulo: video.titulo || '',
+      descricao: video.descricao || '',
       urlEmbed: video.urlEmbed,
-      categoria: video.categoria,
-      duracao: video.duracao
+      categoria: video.categoria || ''
     });
     setShowAddVideoModal(true);
   };
@@ -465,22 +528,28 @@ export default function TeamDetailPage() {
       titulo: '',
       descricao: '',
       urlEmbed: '',
-      categoria: 'Finalização',
-      duracao: ''
+      categoria: ''
     });
     setEditingVideo(null);
     setShowAddVideoModal(false);
   };
+
+  // Vídeos filtrados pela pasta atual
+  const videosFiltrados = videos.filter(v => 
+    pastaVideosAtual ? v.pastaId === pastaVideosAtual : !v.pastaId
+  );
 
   const openVideoModal = (video: VideoTutorial) => {
     setSelectedVideo(video);
     setShowVideoModal(true);
   };
 
-  // Filtrar vídeos
-  const filteredVideos = videos.filter(video => {
-    const matchesSearch = video.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         video.descricao.toLowerCase().includes(searchTerm.toLowerCase());
+  // Filtrar vídeos por busca e categoria
+  const filteredVideos = videosFiltrados.filter(video => {
+    const titulo = video.titulo || '';
+    const descricao = video.descricao || '';
+    const matchesSearch = titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         descricao.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategoria = !filterCategoria || video.categoria === filterCategoria;
     return matchesSearch && matchesCategoria;
   });
@@ -878,7 +947,7 @@ export default function TeamDetailPage() {
                       {mounted ? (capitaoNome || team.players[0]?.name || 'Selecione o Capitão') : 'Capitão'}
                     </div>
                     <div className="text-[#FF6B00] text-sm font-medium">
-                      {team.players[0]?.position || 'Capitão'}
+                      {mounted ? (team.players[0]?.position || 'Capitão') : 'Capitão'}
                     </div>
                   </div>
                 </div>
@@ -1094,10 +1163,10 @@ export default function TeamDetailPage() {
                 <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   Galeria de Fotos – {team.name}
                 </h2>
-                {pastaAtual && (
+                {pastaFotosAtual && (
                   <div className="flex items-center gap-2 mt-2">
                     <button
-                      onClick={() => setPastaAtual(null)}
+                      onClick={() => setPastaFotosAtual(null)}
                       className="text-[#FF6B00] hover:text-[#FF6B00]/80 text-sm flex items-center gap-1"
                     >
                       <ArrowLeft className="w-4 h-4" />
@@ -1105,14 +1174,14 @@ export default function TeamDetailPage() {
                     </button>
                     <span className="text-white/60">|</span>
                     <span className="text-white/80 font-medium">
-                      📁 {pastas.find(p => p.id === pastaAtual)?.nome}
+                      📁 {pastasFotos.find((p: Pasta) => p.id === pastaFotosAtual)?.nome}
                     </span>
                   </div>
                 )}
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setShowAddPastaModal(true)}
+                  onClick={() => setShowAddPastaFotosModal(true)}
                   className="bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-xl transition-all flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
@@ -1129,17 +1198,17 @@ export default function TeamDetailPage() {
             </div>
 
             {/* Pastas (só mostra na raiz) */}
-            {!pastaAtual && pastas.length > 0 && (
+            {!pastaFotosAtual && pastasFotos.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-white/60 text-sm font-medium mb-3">Pastas</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {pastas.map((pasta) => {
+                  {pastasFotos.map((pasta: Pasta) => {
                     const fotosNaPasta = fotos.filter(f => f.pastaId === pasta.id).length;
                     return (
                       <div
                         key={pasta.id}
                         className="bg-white/5 hover:bg-white/10 rounded-xl p-4 cursor-pointer transition-all group relative"
-                        onClick={() => setPastaAtual(pasta.id)}
+                        onClick={() => setPastaFotosAtual(pasta.id)}
                       >
                         <div className="text-4xl mb-2">📁</div>
                         <h4 className="text-white font-medium truncate">{pasta.nome}</h4>
@@ -1150,7 +1219,7 @@ export default function TeamDetailPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleEditPasta(pasta);
+                              handleEditPastaFotos(pasta);
                             }}
                             className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded-lg transition-all"
                           >
@@ -1159,7 +1228,7 @@ export default function TeamDetailPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRemovePasta(pasta.id);
+                              handleRemovePastaFotos(pasta.id);
                             }}
                             className="bg-red-500/20 hover:bg-red-500/40 text-red-400 p-1.5 rounded-lg transition-all"
                           >
@@ -1174,14 +1243,14 @@ export default function TeamDetailPage() {
             )}
 
             {/* Fotos */}
-            {fotosFiltradas.length === 0 && (!pastaAtual ? pastas.length === 0 : true) ? (
+            {fotosFiltradas.length === 0 && (!pastaFotosAtual ? pastasFotos.length === 0 : true) ? (
               <div className="text-center py-16">
                 <ImageIcon className="w-20 h-20 text-white/20 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-white mb-2">
-                  {pastaAtual ? 'Pasta vazia' : 'Nenhuma foto cadastrada'}
+                  {pastaFotosAtual ? 'Pasta vazia' : 'Nenhuma foto cadastrada'}
                 </h3>
                 <p className="text-white/60 mb-6">
-                  {pastaAtual ? 'Adicione fotos a esta pasta!' : 'Comece adicionando a primeira foto do seu time!'}
+                  {pastaFotosAtual ? 'Adicione fotos a esta pasta!' : 'Comece adicionando a primeira foto do seu time!'}
                 </p>
                 <button
                   onClick={() => setShowAddFotoModal(true)}
@@ -1192,7 +1261,7 @@ export default function TeamDetailPage() {
               </div>
             ) : fotosFiltradas.length > 0 && (
               <>
-                {!pastaAtual && pastas.length > 0 && (
+                {!pastaFotosAtual && pastasFotos.length > 0 && (
                   <h3 className="text-white/60 text-sm font-medium mb-3">Fotos sem pasta</h3>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1241,20 +1310,47 @@ export default function TeamDetailPage() {
 
         {activeTab === 'videos' && (
           <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+            {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-              <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Vídeos Tutoriais – {team.name}
-              </h2>
-              <button
-                onClick={() => setShowAddVideoModal(true)}
-                className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-2 px-4 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Adicionar Vídeo
-              </button>
+              <div>
+                <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Vídeos Tutoriais – {team.name}
+                </h2>
+                {pastaVideosAtual && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => setPastaVideosAtual(null)}
+                      className="text-[#FF6B00] hover:text-[#FF6B00]/80 text-sm flex items-center gap-1"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Voltar
+                    </button>
+                    <span className="text-white/60">|</span>
+                    <span className="text-white/80 font-medium">
+                      📁 {pastasVideos.find((p: Pasta) => p.id === pastaVideosAtual)?.nome}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAddPastaVideosModal(true)}
+                  className="bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-xl transition-all flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nova Pasta
+                </button>
+                <button
+                  onClick={() => setShowAddVideoModal(true)}
+                  className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-2 px-4 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2"
+                >
+                  <Plus className="w-5 h-5" />
+                  Adicionar Vídeo
+                </button>
+              </div>
             </div>
 
-            {/* Filters */}
+            {/* Busca e Filtros */}
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <div className="flex-1 relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
@@ -1266,7 +1362,6 @@ export default function TeamDetailPage() {
                   className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
                 />
               </div>
-
               <select
                 value={filterCategoria}
                 onChange={(e) => setFilterCategoria(e.target.value)}
@@ -1279,28 +1374,75 @@ export default function TeamDetailPage() {
               </select>
             </div>
 
+            {/* Pastas (só mostra na raiz) */}
+            {!pastaVideosAtual && pastasVideos.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-white/60 text-sm font-medium mb-3">Pastas</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {pastasVideos.map((pasta: Pasta) => {
+                    const videosNaPasta = videos.filter(v => v.pastaId === pasta.id).length;
+                    return (
+                      <div
+                        key={pasta.id}
+                        className="bg-white/5 hover:bg-white/10 rounded-xl p-4 cursor-pointer transition-all group relative"
+                        onClick={() => setPastaVideosAtual(pasta.id)}
+                      >
+                        <div className="text-4xl mb-2">📁</div>
+                        <h4 className="text-white font-medium truncate">{pasta.nome}</h4>
+                        <p className="text-white/40 text-sm">{videosNaPasta} vídeo{videosNaPasta !== 1 ? 's' : ''}</p>
+                        
+                        {/* Botões de ação */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-1 transition-all">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditPastaVideos(pasta);
+                            }}
+                            className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded-lg transition-all"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemovePastaVideos(pasta.id);
+                            }}
+                            className="bg-red-500/20 hover:bg-red-500/40 text-red-400 p-1.5 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Videos Grid */}
-            {filteredVideos.length === 0 ? (
+            {filteredVideos.length === 0 && (!pastaVideosAtual ? pastasVideos.length === 0 : true) ? (
               <div className="text-center py-16">
                 <Play className="w-20 h-20 text-white/20 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-white mb-2">
-                  {searchTerm || filterCategoria ? 'Nenhum vídeo encontrado' : 'Nenhum vídeo cadastrado'}
+                  {pastaVideosAtual ? 'Pasta vazia' : (searchTerm ? 'Nenhum vídeo encontrado' : 'Nenhum vídeo cadastrado')}
                 </h3>
                 <p className="text-white/60 mb-6">
-                  {searchTerm || filterCategoria 
-                    ? 'Tente ajustar os filtros de busca' 
-                    : 'Comece adicionando vídeos tutoriais para este time'}
+                  {pastaVideosAtual 
+                    ? 'Adicione vídeos a esta pasta!'
+                    : (searchTerm 
+                        ? 'Tente ajustar os filtros de busca' 
+                        : 'Comece adicionando vídeos tutoriais para este time')}
                 </p>
-                {!searchTerm && !filterCategoria && (
+                {!searchTerm && (
                   <button
                     onClick={() => setShowAddVideoModal(true)}
                     className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)]"
                   >
-                    Adicionar Primeiro Vídeo
+                    Adicionar Vídeo
                   </button>
                 )}
               </div>
-            ) : (
+            ) : filteredVideos.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredVideos.map((video) => (
                   <div key={video.id} className="bg-white/5 rounded-xl overflow-hidden hover:bg-white/10 transition-all group">
@@ -1308,25 +1450,24 @@ export default function TeamDetailPage() {
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                         <Play className="w-16 h-16 text-white/80" />
                       </div>
-                      <div className="absolute top-3 right-3 bg-black/80 px-3 py-1 rounded-lg flex items-center gap-1">
-                        <Clock className="w-4 h-4 text-white/60" />
-                        <span className="text-white/80 text-sm font-medium">{video.duracao}</span>
-                      </div>
                     </div>
 
                     <div className="p-5">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="bg-[#FF6B00]/20 text-[#FF6B00] px-3 py-1 rounded-lg text-xs font-bold">
-                          {video.categoria}
-                        </span>
-                      </div>
-
+                      {video.categoria && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="bg-[#FF6B00]/20 text-[#FF6B00] px-3 py-1 rounded-lg text-xs font-bold">
+                            {video.categoria}
+                          </span>
+                        </div>
+                      )}
                       <h3 className="text-white font-bold text-lg mb-2 line-clamp-1">
-                        {video.titulo}
+                        {video.titulo || 'Vídeo sem título'}
                       </h3>
-                      <p className="text-white/60 text-sm mb-4 line-clamp-2">
-                        {video.descricao}
-                      </p>
+                      {video.descricao && (
+                        <p className="text-white/60 text-sm mb-4 line-clamp-2">
+                          {video.descricao}
+                        </p>
+                      )}
 
                       <div className="flex gap-2">
                         <button
@@ -1358,19 +1499,19 @@ export default function TeamDetailPage() {
         )}
       </main>
 
-      {/* Modal Criar/Editar Pasta */}
-      {showAddPastaModal && (
+      {/* Modal Criar/Editar Pasta de Fotos */}
+      {showAddPastaFotosModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-md w-full">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                {editingPasta ? 'Editar Pasta' : 'Nova Pasta'}
+                {editingPastaFotos ? 'Editar Pasta' : 'Nova Pasta'}
               </h3>
               <button
                 onClick={() => {
-                  setShowAddPastaModal(false);
-                  setEditingPasta(null);
-                  setNovaPasta('');
+                  setShowAddPastaFotosModal(false);
+                  setEditingPastaFotos(null);
+                  setNovaPastaFotos('');
                 }}
                 className="text-white/60 hover:text-white transition-colors"
               >
@@ -1383,8 +1524,8 @@ export default function TeamDetailPage() {
                 <label className="block text-white/80 mb-2 font-medium">Nome da Pasta *</label>
                 <input
                   type="text"
-                  value={novaPasta}
-                  onChange={(e) => setNovaPasta(e.target.value)}
+                  value={novaPastaFotos}
+                  onChange={(e) => setNovaPastaFotos(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
                   placeholder="Ex: Bola de domingo"
                 />
@@ -1394,20 +1535,76 @@ export default function TeamDetailPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
-                  setShowAddPastaModal(false);
-                  setEditingPasta(null);
-                  setNovaPasta('');
+                  setShowAddPastaFotosModal(false);
+                  setEditingPastaFotos(null);
+                  setNovaPastaFotos('');
                 }}
                 className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
               >
                 Cancelar
               </button>
               <button
-                onClick={handleAddPasta}
-                disabled={!novaPasta.trim()}
+                onClick={handleAddPastaFotos}
+                disabled={!novaPastaFotos.trim()}
                 className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {editingPasta ? 'Salvar' : 'Criar Pasta'}
+                {editingPastaFotos ? 'Salvar' : 'Criar Pasta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Criar/Editar Pasta de Vídeos */}
+      {showAddPastaVideosModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {editingPastaVideos ? 'Editar Pasta' : 'Nova Pasta'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddPastaVideosModal(false);
+                  setEditingPastaVideos(null);
+                  setNovaPastaVideos('');
+                }}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Nome da Pasta *</label>
+                <input
+                  type="text"
+                  value={novaPastaVideos}
+                  onChange={(e) => setNovaPastaVideos(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  placeholder="Ex: Treinos táticos"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddPastaVideosModal(false);
+                  setEditingPastaVideos(null);
+                  setNovaPastaVideos('');
+                }}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddPastaVideos}
+                disabled={!novaPastaVideos.trim()}
+                className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {editingPastaVideos ? 'Salvar' : 'Criar Pasta'}
               </button>
             </div>
           </div>
@@ -1421,9 +1618,9 @@ export default function TeamDetailPage() {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 Adicionar Foto
-                {pastaAtual && (
+                {pastaFotosAtual && (
                   <span className="text-base font-normal text-white/60 ml-2">
-                    em 📁 {pastas.find(p => p.id === pastaAtual)?.nome}
+                    em 📁 {pastasFotos.find((p: Pasta) => p.id === pastaFotosAtual)?.nome}
                   </span>
                 )}
               </h3>
@@ -1635,7 +1832,12 @@ export default function TeamDetailPage() {
           <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                {editingVideo ? 'Editar Vídeo Tutorial' : 'Adicionar Vídeo Tutorial'}
+                {editingVideo ? 'Editar Vídeo' : 'Adicionar Vídeo'}
+                {pastaVideosAtual && !editingVideo && (
+                  <span className="text-base font-normal text-white/60 ml-2">
+                    em 📁 {pastasVideos.find((p: Pasta) => p.id === pastaVideosAtual)?.nome}
+                  </span>
+                )}
               </h3>
               <button
                 onClick={resetVideoForm}
@@ -1646,28 +1848,6 @@ export default function TeamDetailPage() {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-white/80 mb-2 font-medium">Título *</label>
-                <input
-                  type="text"
-                  value={videoFormData.titulo}
-                  onChange={(e) => setVideoFormData({ ...videoFormData, titulo: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
-                  placeholder="Ex: Técnicas de Finalização"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white/80 mb-2 font-medium">Descrição</label>
-                <textarea
-                  value={videoFormData.descricao}
-                  onChange={(e) => setVideoFormData({ ...videoFormData, descricao: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none resize-none"
-                  rows={3}
-                  placeholder="Descreva o conteúdo do vídeo..."
-                />
-              </div>
-
               <div>
                 <label className="block text-white/80 mb-2 font-medium">URL do Vídeo (YouTube) *</label>
                 <input
@@ -1682,30 +1862,40 @@ export default function TeamDetailPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-white/80 mb-2 font-medium">Categoria *</label>
-                  <select
-                    value={videoFormData.categoria}
-                    onChange={(e) => setVideoFormData({ ...videoFormData, categoria: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
-                  >
-                    {categorias.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Título (opcional)</label>
+                <input
+                  type="text"
+                  value={videoFormData.titulo}
+                  onChange={(e) => setVideoFormData({ ...videoFormData, titulo: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  placeholder="Ex: Técnicas de Finalização"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-white/80 mb-2 font-medium">Duração</label>
-                  <input
-                    type="text"
-                    value={videoFormData.duracao}
-                    onChange={(e) => setVideoFormData({ ...videoFormData, duracao: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
-                    placeholder="Ex: 10:30"
-                  />
-                </div>
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Categoria (opcional)</label>
+                <select
+                  value={videoFormData.categoria}
+                  onChange={(e) => setVideoFormData({ ...videoFormData, categoria: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                >
+                  <option value="">Selecione uma categoria</option>
+                  {categorias.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Descrição (opcional)</label>
+                <textarea
+                  value={videoFormData.descricao}
+                  onChange={(e) => setVideoFormData({ ...videoFormData, descricao: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none resize-none"
+                  rows={3}
+                  placeholder="Descreva o conteúdo do vídeo..."
+                />
               </div>
             </div>
 
@@ -1718,7 +1908,7 @@ export default function TeamDetailPage() {
               </button>
               <button
                 onClick={editingVideo ? handleEditVideo : handleAddVideo}
-                disabled={!videoFormData.titulo || !videoFormData.urlEmbed}
+                disabled={!videoFormData.urlEmbed}
                 className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingVideo ? 'Salvar Alterações' : 'Adicionar Vídeo'}
@@ -1735,17 +1925,8 @@ export default function TeamDetailPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  {selectedVideo.titulo}
+                  {selectedVideo.titulo || 'Vídeo'}
                 </h3>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="bg-[#FF6B00]/20 text-[#FF6B00] px-3 py-1 rounded-lg font-bold">
-                    {selectedVideo.categoria}
-                  </span>
-                  <span className="text-white/60 flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    {selectedVideo.duracao}
-                  </span>
-                </div>
               </div>
               <button
                 onClick={() => setShowVideoModal(false)}
