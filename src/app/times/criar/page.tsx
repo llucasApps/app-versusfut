@@ -1,18 +1,21 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { ArrowLeft, Save, User, Phone, Upload, Image as ImageIcon, CheckCircle, XCircle, MapPin, Users } from 'lucide-react';
+import { ArrowLeft, Save, User, Phone, Upload, Image as ImageIcon, CheckCircle, XCircle, MapPin, Users, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 export default function CriarTimePage() {
   const router = useRouter();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     name: '',
-    logo: '',
+    logo: '⚽',
     description: '',
     president: '',
     phone: '',
@@ -23,47 +26,144 @@ export default function CriarTimePage() {
   });
 
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string>('');
   const categoryOptions = ['Juvenil', 'Adulto', 'Veterano 35+', 'Master 45+'] as const;
   const teamTypeOptions = ['Campo', 'Society', 'Futsal'] as const;
 
-  // Função para upload de logo
+  // Função para upload de logo (preview local)
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Validar tamanho (máx 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('A imagem deve ter no máximo 5MB');
+        return;
+      }
+      
+      // Validar tipo
+      if (!file.type.startsWith('image/')) {
+        setError('O arquivo deve ser uma imagem');
+        return;
+      }
+
+      setLogoFile(file);
+      
+      // Criar preview
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setFormData({ ...formData, logo: base64 });
+        setLogoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Função para fazer upload da imagem no Supabase Storage
+  const uploadLogo = async (teamId: string): Promise<string | null> => {
+    if (!logoFile || !user) return null;
+
+    const fileExt = logoFile.name.split('.').pop();
+    const fileName = `${user.id}/${teamId}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('team-logos')
+      .upload(fileName, logoFile, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('Erro ao fazer upload:', uploadError);
+      return null;
+    }
+
+    // Retornar URL pública
+    const { data } = supabase.storage
+      .from('team-logos')
+      .getPublicUrl(fileName);
+
+    return data.publicUrl;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     
-    // Gerar ID único para o novo time
-    const newTeamId = `custom_${Date.now()}`;
-    
-    // Salvar no localStorage
-    const existingTeams = JSON.parse(localStorage.getItem('customTeams') || '[]');
-    const newTeam = {
-      id: newTeamId,
-      ...formData,
-      players: [],
-      stats: { wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
-      isMyTeam: true,
-    };
-    existingTeams.push(newTeam);
-    localStorage.setItem('customTeams', JSON.stringify(existingTeams));
-    localStorage.setItem(`team_${newTeamId}`, JSON.stringify(formData));
-    
-    setSaved(true);
-    
-    // Redirecionar após salvar
-    setTimeout(() => {
-      router.push('/times');
-    }, 1000);
+    if (!user) {
+      setError('Você precisa estar logado para criar um time');
+      return;
+    }
+
+    if (!formData.name.trim()) {
+      setError('O nome do time é obrigatório');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      // Primeiro, criar o time com logo padrão
+      const { data: teamData, error: insertError } = await supabase
+        .from('teams')
+        .insert({
+          name: formData.name.trim(),
+          owner_id: user.id,
+          logo: '⚽', // Será atualizado se houver imagem
+          description: formData.description || null,
+          president: formData.president || null,
+          phone: formData.phone || null,
+          category: formData.category || 'Adulto',
+          team_type: formData.teamType || 'Society',
+          has_venue: formData.hasVenue,
+          available_for_match: formData.availableForMatch,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goals_for: 0,
+          goals_against: 0,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Erro ao criar time:', insertError);
+        if (insertError.code === '42501') {
+          setError('Sem permissão para criar time. Verifique as políticas RLS no Supabase.');
+        } else if (insertError.code === '23503') {
+          setError('Erro: seu perfil não existe na tabela profiles. Crie o perfil primeiro.');
+        } else {
+          setError(`Erro ao criar time: ${insertError.message}`);
+        }
+        setSaving(false);
+        return;
+      }
+
+      // Se houver imagem selecionada, fazer upload e atualizar o time
+      if (logoFile && teamData) {
+        const logoUrl = await uploadLogo(teamData.id);
+        
+        if (logoUrl) {
+          // Atualizar o time com a URL da imagem
+          await supabase
+            .from('teams')
+            .update({ logo: logoUrl })
+            .eq('id', teamData.id);
+        }
+      }
+
+      setSaved(true);
+      
+      // Redirecionar após salvar
+      setTimeout(() => {
+        router.push('/times');
+      }, 1000);
+    } catch (err) {
+      console.error('Erro:', err);
+      setError('Erro inesperado. Tente novamente.');
+      setSaving(false);
+    }
   };
 
   return (
@@ -93,6 +193,14 @@ export default function CriarTimePage() {
           </div>
         )}
 
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/40 text-red-400 px-6 py-4 rounded-xl mb-6 flex items-center gap-3">
+            <XCircle className="w-5 h-5" />
+            {error}
+          </div>
+        )}
+
         {/* Form */}
         <div className="max-w-2xl">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -102,10 +210,10 @@ export default function CriarTimePage() {
               <div className="flex items-center gap-6">
                 {/* Preview do Logo */}
                 <div className="relative">
-                  {formData.logo && formData.logo.startsWith('data:') ? (
+                  {logoPreview ? (
                     <div className="w-32 h-32 rounded-2xl overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
                       <img 
-                        src={formData.logo} 
+                        src={logoPreview} 
                         alt="Logo do time" 
                         className="w-full h-full object-cover"
                       />
@@ -132,15 +240,18 @@ export default function CriarTimePage() {
                     className="w-full bg-[#FF6B00]/10 hover:bg-[#FF6B00]/20 text-[#FF6B00] font-medium py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2"
                   >
                     <Upload className="w-5 h-5" />
-                    {formData.logo ? 'Alterar Logo' : 'Adicionar Logo'}
+                    {logoPreview ? 'Alterar Logo' : 'Adicionar Logo'}
                   </button>
                   <p className="text-white/40 text-sm mt-2 text-center">
                     Formatos: JPG, PNG, GIF (máx. 5MB)
                   </p>
-                  {formData.logo && (
+                  {logoPreview && (
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, logo: '' })}
+                      onClick={() => {
+                        setLogoFile(null);
+                        setLogoPreview('');
+                      }}
                       className="w-full mt-2 text-red-400 hover:text-red-300 text-sm transition-all"
                     >
                       Remover logo
@@ -320,13 +431,13 @@ export default function CriarTimePage() {
               <h3 className="text-white font-bold mb-4">Preview</h3>
               <div className="bg-white/5 rounded-xl p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  {formData.logo && formData.logo.startsWith('data:') ? (
+                  {logoPreview ? (
                     <div className="w-16 h-16 rounded-xl overflow-hidden">
-                      <img src={formData.logo} alt="Logo" className="w-full h-full object-cover" />
+                      <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center">
-                      <ImageIcon className="w-8 h-8 text-white/30" />
+                      <span className="text-2xl">⚽</span>
                     </div>
                   )}
                   <div className="flex-1">
@@ -388,10 +499,20 @@ export default function CriarTimePage() {
             <div className="flex gap-4">
               <button
                 type="submit"
-                className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center justify-center gap-2"
+                disabled={saving || saved}
+                className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 disabled:bg-[#FF6B00]/50 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:shadow-none flex items-center justify-center gap-2"
               >
-                <Save className="w-5 h-5" />
-                Criar Time
+                {saving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Criando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Criar Time
+                  </>
+                )}
               </button>
               
               <Link

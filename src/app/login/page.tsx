@@ -1,16 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn, user, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirecionar se já estiver logado
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,18 +32,20 @@ export default function LoginPage() {
 
     setIsLoading(true);
     
-    // Simular login (em produção, conectar com backend)
-    setTimeout(() => {
-      // Login de teste
-      if (email === 'admin@versusfut.com' && password === '123456') {
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userEmail', email);
-        router.push('/');
-      } else {
+    const { error } = await signIn(email, password);
+    
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
         setError('Email ou senha incorretos');
+      } else if (error.message.includes('Email not confirmed')) {
+        setError('Email não confirmado. Verifique sua caixa de entrada.');
+      } else {
+        setError(error.message || 'Erro ao fazer login');
       }
       setIsLoading(false);
-    }, 1500);
+    } else {
+      router.push('/');
+    }
   };
 
   return (
@@ -183,14 +194,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Credenciais de teste */}
-          <div className="mt-6 p-4 bg-[#FF6B00]/5 border border-[#FF6B00]/20 rounded-xl">
-            <p className="text-white/40 text-xs text-center mb-2">Credenciais de teste:</p>
-            <p className="text-white/60 text-xs text-center font-mono">
-              admin@versusfut.com / 123456
-            </p>
           </div>
-        </div>
 
         {/* Footer */}
         <p className="text-center text-white/30 text-sm mt-6">

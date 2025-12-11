@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Users, Calendar, Search, Mail, Menu, X, Settings, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
@@ -17,10 +18,10 @@ const navItems = [
 export default function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const handleLogout = () => {
-    // Futuramente: implementar logout real
-    // Por enquanto, apenas redireciona para a página inicial
-    window.location.href = '/';
+  const { signOut, user, profile } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
   };
 
   return (

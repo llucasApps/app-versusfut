@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import DataInitializer from "@/components/DataInitializer";
+import { AuthProvider } from "@/contexts/AuthContext";
 import "./globals.css";
 
 const inter = Inter({
@@ -31,8 +32,10 @@ export default function RootLayout({
       <body
         className={`${inter.variable} antialiased bg-[#0D0D0D] text-white min-h-screen`}
       >
-        <DataInitializer />
-        {children}
+        <AuthProvider>
+          <DataInitializer />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
