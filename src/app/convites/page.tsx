@@ -2,9 +2,18 @@
 
 import Navigation from '@/components/Navigation';
 import { matches, allTeams, Match, Team } from '@/lib/mock-data';
-import { Mail, CheckCircle, XCircle, Clock, Calendar, MapPin, Send, AlertCircle, ArrowRight, X, Users, Trophy, Target, Shield, Phone, User } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Mail, CheckCircle, XCircle, Clock, Calendar, MapPin, Send, AlertCircle, ArrowRight, X, Users, Trophy, Target, Shield, Phone, User, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+
+interface ChatMessage {
+  id: string;
+  matchId: string;
+  sender: 'me' | 'them';
+  senderName: string;
+  message: string;
+  timestamp: string;
+}
 
 export default function ConvitesPage() {
   const [filter, setFilter] = useState<'received' | 'accepted' | 'declined'>('received');
@@ -13,14 +22,21 @@ export default function ConvitesPage() {
   const [declinedMatches, setDeclinedMatches] = useState<string[]>([]);
   const [showNotification, setShowNotification] = useState<string | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [readMessages, setReadMessages] = useState<Record<string, number>>({});
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
     // Carregar convites aceitos/recusados do localStorage
     const savedAccepted = localStorage.getItem('acceptedMatches');
     const savedDeclined = localStorage.getItem('declinedMatches');
+    const savedReadMessages = localStorage.getItem('readMessages');
     if (savedAccepted) setAcceptedMatches(JSON.parse(savedAccepted));
     if (savedDeclined) setDeclinedMatches(JSON.parse(savedDeclined));
+    if (savedReadMessages) setReadMessages(JSON.parse(savedReadMessages));
   }, []);
 
   // Partidas pendentes são convites recebidos
@@ -85,6 +101,120 @@ export default function ConvitesPage() {
       '6': 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=800&q=80',
     };
     return photos[teamId] || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80';
+  };
+
+  // Funções do Chat
+  const loadChatMessages = (matchId: string) => {
+    const saved = localStorage.getItem(`chat_${matchId}`);
+    if (saved) {
+      setChatMessages(JSON.parse(saved));
+    } else {
+      setChatMessages([]);
+    }
+  };
+
+  const saveChatMessages = (matchId: string, messages: ChatMessage[]) => {
+    localStorage.setItem(`chat_${matchId}`, JSON.stringify(messages));
+  };
+
+  const openChat = () => {
+    if (selectedMatch) {
+      loadChatMessages(selectedMatch.id);
+      setShowChatModal(true);
+      // Marcar mensagens como lidas
+      markMessagesAsRead(selectedMatch.id);
+    }
+  };
+
+  // Contar mensagens não lidas de um convite
+  const getUnreadCount = (matchId: string): number => {
+    const saved = localStorage.getItem(`chat_${matchId}`);
+    if (!saved) return 0;
+    
+    const messages: ChatMessage[] = JSON.parse(saved);
+    const lastReadCount = readMessages[matchId] || 0;
+    
+    // Conta apenas mensagens do outro time (não minhas)
+    const theirMessages = messages.filter(m => m.sender === 'them');
+    return Math.max(0, theirMessages.length - lastReadCount);
+  };
+
+  // Marcar mensagens como lidas
+  const markMessagesAsRead = (matchId: string) => {
+    const saved = localStorage.getItem(`chat_${matchId}`);
+    if (!saved) return;
+    
+    const messages: ChatMessage[] = JSON.parse(saved);
+    const theirMessagesCount = messages.filter(m => m.sender === 'them').length;
+    
+    const updatedReadMessages = { ...readMessages, [matchId]: theirMessagesCount };
+    setReadMessages(updatedReadMessages);
+    localStorage.setItem('readMessages', JSON.stringify(updatedReadMessages));
+  };
+
+  const sendMessage = () => {
+    if (!newMessage.trim() || !selectedMatch) return;
+
+    const message: ChatMessage = {
+      id: Date.now().toString(),
+      matchId: selectedMatch.id,
+      sender: 'me',
+      senderName: selectedMatch.awayTeam, // Quem recebeu o convite
+      message: newMessage.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    const updatedMessages = [...chatMessages, message];
+    setChatMessages(updatedMessages);
+    saveChatMessages(selectedMatch.id, updatedMessages);
+    setNewMessage('');
+
+    // Scroll para o final
+    setTimeout(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  const formatChatTime = (timestamp: string) => {
+    if (!mounted) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatChatDate = (timestamp: string) => {
+    if (!mounted) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  };
+
+  // Simular resposta do outro time (para teste)
+  const simulateResponse = () => {
+    if (!selectedMatch) return;
+
+    const responses = [
+      'Opa, beleza! Vamos confirmar então.',
+      'Perfeito, estamos combinados!',
+      'Pode ser, só preciso confirmar com o pessoal.',
+      'Show! Nos vemos lá.',
+      'Combinado! Quantos jogadores vocês vão trazer?',
+    ];
+
+    const message: ChatMessage = {
+      id: Date.now().toString(),
+      matchId: selectedMatch.id,
+      sender: 'them',
+      senderName: selectedMatch.homeTeam,
+      message: responses[Math.floor(Math.random() * responses.length)],
+      timestamp: new Date().toISOString(),
+    };
+
+    const updatedMessages = [...chatMessages, message];
+    setChatMessages(updatedMessages);
+    saveChatMessages(selectedMatch.id, updatedMessages);
+
+    setTimeout(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   // Obter lista baseada no filtro
@@ -181,6 +311,7 @@ export default function ConvitesPage() {
           {filteredList.map((match) => {
             const isAccepted = acceptedMatches.includes(match.id);
             const isDeclined = declinedMatches.includes(match.id);
+            const unreadCount = mounted ? getUnreadCount(match.id) : 0;
             
             return (
               <div 
@@ -191,11 +322,24 @@ export default function ConvitesPage() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-[#FF5A00]/10 rounded-xl">
+                    <div className="p-3 bg-[#FF5A00]/10 rounded-xl relative">
                       <Mail className="w-6 h-6 text-[#FF5A00]" />
+                      {unreadCount > 0 && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#FF6B00] rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white mb-1">Desafio de {match.homeTeam}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-white">Convite de {match.homeTeam}</h3>
+                        {unreadCount > 0 && (
+                          <div className="flex items-center gap-1 bg-[#FF6B00]/20 text-[#FF6B00] px-2 py-0.5 rounded-full text-xs font-medium">
+                            <MessageCircle className="w-3 h-3" />
+                            {unreadCount} {unreadCount === 1 ? 'nova' : 'novas'}
+                          </div>
+                        )}
+                      </div>
                       <p className="text-white/60 text-sm">Para: {match.awayTeam}</p>
                     </div>
                   </div>
@@ -339,21 +483,30 @@ export default function ConvitesPage() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header do Modal */}
-            <div className="sticky top-0 bg-[#1A1A1A] border-b border-white/10 p-6 flex items-center justify-between">
+            <div className="sticky top-0 bg-[#1A1A1A] border-b border-white/10 p-6 flex items-center justify-between z-10">
               <div>
                 <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   Detalhes do Convite
                 </h2>
                 <p className="text-white/60 text-sm mt-1">
-                  Desafio de {selectedMatch.homeTeam}
+                  Convite de {selectedMatch.homeTeam}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedMatch(null)}
-                className="text-white/60 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={openChat}
+                  className="flex items-center gap-2 bg-[#FF6B00]/10 hover:bg-[#FF6B00]/20 text-[#FF6B00] px-4 py-2 rounded-xl transition-all"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  <span className="hidden sm:inline">Chat</span>
+                </button>
+                <button
+                  onClick={() => setSelectedMatch(null)}
+                  className="text-white/60 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
             </div>
 
             <div className="p-6 space-y-6">
@@ -592,6 +745,105 @@ export default function ConvitesPage() {
                   </Link>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Chat */}
+      {showChatModal && selectedMatch && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+          <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl w-full max-w-lg h-[80vh] flex flex-col">
+            {/* Header do Chat */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#FF6B00]/20 rounded-full flex items-center justify-center">
+                  <MessageCircle className="w-5 h-5 text-[#FF6B00]" />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold">Chat com {selectedMatch.homeTeam}</h3>
+                  <p className="text-white/60 text-xs">Conversa sobre o convite</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowChatModal(false)}
+                className="text-white/60 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Área de Mensagens */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {chatMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <MessageCircle className="w-16 h-16 text-white/20 mb-4" />
+                  <p className="text-white/60 mb-2">Nenhuma mensagem ainda</p>
+                  <p className="text-white/40 text-sm">Inicie uma conversa com {selectedMatch.homeTeam}</p>
+                </div>
+              ) : (
+                <>
+                  {chatMessages.map((msg, index) => {
+                    const showDate = index === 0 || 
+                      formatChatDate(msg.timestamp) !== formatChatDate(chatMessages[index - 1].timestamp);
+                    
+                    return (
+                      <div key={msg.id}>
+                        {showDate && (
+                          <div className="flex justify-center my-4">
+                            <span className="bg-white/10 text-white/60 text-xs px-3 py-1 rounded-full">
+                              {formatChatDate(msg.timestamp)}
+                            </span>
+                          </div>
+                        )}
+                        <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                            msg.sender === 'me'
+                              ? 'bg-[#FF6B00] text-white rounded-br-md'
+                              : 'bg-white/10 text-white rounded-bl-md'
+                          }`}>
+                            <p className="text-sm">{msg.message}</p>
+                            <p className={`text-xs mt-1 ${
+                              msg.sender === 'me' ? 'text-white/70' : 'text-white/50'
+                            }`}>
+                              {formatChatTime(msg.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatEndRef} />
+                </>
+              )}
+            </div>
+
+            {/* Input de Mensagem */}
+            <div className="p-4 border-t border-white/10">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                  placeholder="Digite sua mensagem..."
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:border-[#FF6B00] focus:outline-none"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!newMessage.trim()}
+                  className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 disabled:bg-white/10 disabled:text-white/40 text-white p-3 rounded-xl transition-all"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+              {/* Botão para simular resposta (apenas para teste) */}
+              <button
+                onClick={simulateResponse}
+                className="w-full mt-2 text-white/40 hover:text-white/60 text-xs py-2 transition-colors"
+              >
+                🧪 Simular resposta do {selectedMatch.homeTeam}
+              </button>
             </div>
           </div>
         </div>
