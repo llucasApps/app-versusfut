@@ -1,14 +1,15 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { myTeams } from '@/lib/mock-data';
-import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus } from 'lucide-react';
+import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus, Loader2 } from 'lucide-react';
 import { Player } from '@/lib/mock-data';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useViewMode } from '@/hooks/useViewMode';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase, Team } from '@/lib/supabase';
 
 type Tab = 'resumo' | 'elenco' | 'taticas' | 'fotos' | 'videos';
 
@@ -43,9 +44,35 @@ const categorias = ['Finalização', 'Tática', 'Preparação Física', 'Passe',
 
 export default function TeamDetailPage() {
   const params = useParams();
-  const team = myTeams.find(t => t.id === params.id);
+  const { user } = useAuth();
   const { isOwnerMode } = useViewMode();
+  const [team, setTeam] = useState<Team | null>(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('resumo');
+
+  // Buscar time do Supabase
+  useEffect(() => {
+    const fetchTeam = async () => {
+      if (!params.id) return;
+      
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', params.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao buscar time:', error);
+        setTeam(null);
+      } else {
+        setTeam(data);
+      }
+      setLoading(false);
+    };
+
+    fetchTeam();
+  }, [params.id]);
   const [fotos, setFotos] = useState<FotoTime[]>([]);
   const [pastasFotos, setPastasFotos] = useState<Pasta[]>([]);
   const [pastaFotosAtual, setPastaFotosAtual] = useState<string | null>(null);
@@ -288,8 +315,9 @@ export default function TeamDetailPage() {
     setIsEditingPlayer(false);
   };
 
-  // Combinar jogadores do mock com customizados
-  const allPlayers = team ? [...team.players, ...customPlayers] : [];
+  // Usar apenas jogadores customizados (localStorage) por enquanto
+  // TODO: Integrar com tabela team_players do Supabase
+  const allPlayers = customPlayers;
 
   // Filtrar jogadores
   const filteredPlayers = allPlayers.filter(player => {
@@ -554,6 +582,18 @@ export default function TeamDetailPage() {
     return matchesSearch && matchesCategoria;
   });
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D]">
+        <Navigation />
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="w-8 h-8 text-[#FF6B00] animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
   if (!team) {
     return (
       <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
@@ -568,9 +608,15 @@ export default function TeamDetailPage() {
     );
   }
 
-  const totalMatches = team.stats.wins + team.stats.draws + team.stats.losses;
-  const winRate = totalMatches > 0 ? Math.round((team.stats.wins / totalMatches) * 100) : 0;
-  const goalDifference = team.stats.goalsFor - team.stats.goalsAgainst;
+  // Usar campos do Supabase (snake_case)
+  const wins = team.wins || 0;
+  const draws = team.draws || 0;
+  const losses = team.losses || 0;
+  const goalsFor = team.goals_for || 0;
+  const goalsAgainst = team.goals_against || 0;
+  const totalMatches = wins + draws + losses;
+  const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+  const goalDifference = goalsFor - goalsAgainst;
 
   return (
     <div className="min-h-screen bg-[#0D0D0D]">
@@ -588,16 +634,16 @@ export default function TeamDetailPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-6">
             <div className="flex items-center gap-6">
               {/* Logo do Time */}
-              {teamData?.logo && teamData.logo.startsWith('data:') ? (
+              {(teamData?.logo && teamData.logo.startsWith('data:')) || (team.logo && team.logo.startsWith('http')) ? (
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
                   <img 
-                    src={teamData.logo} 
+                    src={teamData?.logo || team.logo} 
                     alt="Logo do time" 
                     className="w-full h-full object-cover"
                   />
                 </div>
               ) : (
-                <div className="text-6xl sm:text-7xl">{team.logo}</div>
+                <div className="text-6xl sm:text-7xl">{team.logo || '⚽'}</div>
               )}
               <div>
                 <div className="flex items-center gap-3 flex-wrap mb-2">
@@ -610,11 +656,11 @@ export default function TeamDetailPage() {
                     </span>
                   )}
                   <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                    (teamData?.availableForMatch !== undefined ? teamData.availableForMatch : team.availableForMatch !== false)
+                    (teamData?.availableForMatch !== undefined ? teamData.availableForMatch : team.available_for_match !== false)
                       ? 'bg-green-500/20 text-green-400' 
                       : 'bg-red-500/20 text-red-400'
                   }`}>
-                    {(teamData?.availableForMatch !== undefined ? teamData.availableForMatch : team.availableForMatch !== false) ? 'Disponível' : 'Indisponível'}
+                    {(teamData?.availableForMatch !== undefined ? teamData.availableForMatch : team.available_for_match !== false) ? 'Disponível' : 'Indisponível'}
                   </span>
                 </div>
                 <p className="text-white/60 text-lg">{teamData?.description || team.description}</p>
@@ -645,7 +691,7 @@ export default function TeamDetailPage() {
           {/* Quick Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-[#FF6B00]/10 rounded-xl p-4 text-center">
-              <div className="text-3xl font-bold text-[#FF6B00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{team.players.length + customPlayers.length}</div>
+              <div className="text-3xl font-bold text-[#FF6B00] mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{customPlayers.length}</div>
               <div className="text-white/60 text-sm">Jogadores</div>
             </div>
             <div className="bg-[#FF6B00]/10 rounded-xl p-4 text-center">
@@ -737,12 +783,12 @@ export default function TeamDetailPage() {
                         <Trophy className="w-5 h-5 text-[#FF6B00]" />
                         <span className="text-white font-medium">Vitórias</span>
                       </div>
-                      <span className="text-[#FF6B00] font-bold text-xl">{team.stats.wins}</span>
+                      <span className="text-[#FF6B00] font-bold text-xl">{wins}</span>
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
                       <div 
                         className="bg-gradient-to-r from-[#FF6B00] to-[#FF8C00] h-full rounded-full"
-                        style={{ width: `${totalMatches > 0 ? (team.stats.wins / totalMatches) * 100 : 0}%` }}
+                        style={{ width: `${totalMatches > 0 ? (wins / totalMatches) * 100 : 0}%` }}
                       />
                     </div>
                   </div>
@@ -753,12 +799,12 @@ export default function TeamDetailPage() {
                         <Target className="w-5 h-5 text-white/60" />
                         <span className="text-white font-medium">Empates</span>
                       </div>
-                      <span className="text-white font-bold text-xl">{team.stats.draws}</span>
+                      <span className="text-white font-bold text-xl">{draws}</span>
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
                       <div 
                         className="bg-white/40 h-full rounded-full"
-                        style={{ width: `${totalMatches > 0 ? (team.stats.draws / totalMatches) * 100 : 0}%` }}
+                        style={{ width: `${totalMatches > 0 ? (draws / totalMatches) * 100 : 0}%` }}
                       />
                     </div>
                   </div>
@@ -769,12 +815,12 @@ export default function TeamDetailPage() {
                         <TrendingUp className="w-5 h-5 text-red-500" />
                         <span className="text-white font-medium">Derrotas</span>
                       </div>
-                      <span className="text-white/60 font-bold text-xl">{team.stats.losses}</span>
+                      <span className="text-white/60 font-bold text-xl">{losses}</span>
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
                       <div 
                         className="bg-red-500/40 h-full rounded-full"
-                        style={{ width: `${totalMatches > 0 ? (team.stats.losses / totalMatches) * 100 : 0}%` }}
+                        style={{ width: `${totalMatches > 0 ? (losses / totalMatches) * 100 : 0}%` }}
                       />
                     </div>
                   </div>
@@ -790,14 +836,14 @@ export default function TeamDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div className="text-center">
                     <div className="text-4xl font-bold text-[#FF6B00] mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {team.stats.goalsFor}
+                      {goalsFor}
                     </div>
                     <div className="text-white/60">Gols Marcados</div>
                   </div>
                   
                   <div className="text-center">
                     <div className="text-4xl font-bold text-white/60 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {team.stats.goalsAgainst}
+                      {goalsAgainst}
                     </div>
                     <div className="text-white/60">Gols Sofridos</div>
                   </div>
@@ -814,7 +860,7 @@ export default function TeamDetailPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-white/60">Média de gols por partida</span>
                     <span className="text-white font-bold">
-                      {totalMatches > 0 ? (team.stats.goalsFor / totalMatches).toFixed(1) : '0.0'}
+                      {totalMatches > 0 ? (goalsFor / totalMatches).toFixed(1) : '0.0'}
                     </span>
                   </div>
                 </div>
@@ -944,10 +990,10 @@ export default function TeamDetailPage() {
                   {/* Nome do Capitão */}
                   <div className="mt-4 text-center">
                     <div className="text-white font-bold text-lg">
-                      {mounted ? (capitaoNome || team.players[0]?.name || 'Selecione o Capitão') : 'Capitão'}
+                      {mounted ? (capitaoNome || customPlayers[0]?.name || 'Selecione o Capitão') : 'Capitão'}
                     </div>
                     <div className="text-[#FF6B00] text-sm font-medium">
-                      {mounted ? (team.players[0]?.position || 'Capitão') : 'Capitão'}
+                      {mounted ? (customPlayers[0]?.position || 'Capitão') : 'Capitão'}
                     </div>
                   </div>
                 </div>
@@ -967,23 +1013,27 @@ export default function TeamDetailPage() {
                 </h3>
                 
                 <div className="space-y-3">
-                  {team.players
-                    .sort((a, b) => b.stats.goals - a.stats.goals)
-                    .slice(0, 3)
-                    .map((player, index) => (
-                      <div key={player.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-lg">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                          index === 0 ? 'bg-[#FF6B00]/20 text-[#FF6B00]' : 'bg-white/10 text-white/60'
-                        }`}>
-                          {index + 1}
+                  {customPlayers.length > 0 ? (
+                    [...customPlayers]
+                      .sort((a: Player, b: Player) => (b.stats?.goals || 0) - (a.stats?.goals || 0))
+                      .slice(0, 3)
+                      .map((player: Player, index: number) => (
+                        <div key={player.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-lg">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                            index === 0 ? 'bg-[#FF6B00]/20 text-[#FF6B00]' : 'bg-white/10 text-white/60'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-white font-medium text-sm">{player.name}</div>
+                            <div className="text-white/60 text-xs">{player.position}</div>
+                          </div>
+                          <div className="text-[#FF6B00] font-bold">{player.stats?.goals || 0}</div>
                         </div>
-                        <div className="flex-1">
-                          <div className="text-white font-medium text-sm">{player.name}</div>
-                          <div className="text-white/60 text-xs">{player.position}</div>
-                        </div>
-                        <div className="text-[#FF6B00] font-bold">{player.stats.goals}</div>
-                      </div>
-                    ))}
+                      ))
+                  ) : (
+                    <p className="text-white/40 text-sm text-center py-4">Nenhum jogador cadastrado</p>
+                  )}
                 </div>
               </div>
             </div>

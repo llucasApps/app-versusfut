@@ -629,7 +629,7 @@
 
   // Escutar comandos de ativação/desativação do parent
   window.addEventListener('message', (event) => {
-    console.log('[Lasy Element Selector] Received message:', event.data.type, event.data);
+    // console.log('[Lasy Element Selector] Received message:', event.data.type, event.data);
     
     if (event.data.type === 'lasy-element-selector') {
       const action = event.data.action;
@@ -655,7 +655,7 @@
     }
   });
 
-  console.log('[Lasy Element Selector] Initialized and ready');
+  // console.log('[Lasy Element Selector] Initialized and ready');
 
   // ===== URL CHANGE DETECTION + ROUTE DISCOVERY =====
   let currentUrl = window.location.href;
@@ -685,7 +685,7 @@
       }
     }, TARGET_ORIGIN);
     
-    console.log('[Lasy URL Tracker] URL changed to:', pathname);
+    // console.log('[Lasy URL Tracker] URL changed to:', pathname);
     
     // Agendar scan de links após mudança
     clearTimeout(scanTimeout);
@@ -726,7 +726,7 @@
           }
         }, TARGET_ORIGIN);
         
-        console.log('[Lasy Route Discovery] Found new routes:', Array.from(newRoutes));
+        // console.log('[Lasy Route Discovery] Found new routes:', Array.from(newRoutes));
       }
     } catch (error) {
       console.debug('[Lasy Route Discovery] Error scanning links:', error);
@@ -783,8 +783,8 @@
     
     notifyUrlChange(); // Notificar URL inicial
     scanPageLinks(); // Scan inicial de links
-    console.log('[Lasy URL Tracker] Initialized and tracking URL changes');
-    console.log('[Lasy Route Discovery] Initialized and scanning for routes');
+    // console.log('[Lasy URL Tracker] Initialized and tracking URL changes');
+    // console.log('[Lasy Route Discovery] Initialized and scanning for routes');
   }
 
   // Aguardar carregamento completo da página
