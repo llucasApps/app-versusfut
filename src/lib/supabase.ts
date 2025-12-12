@@ -87,3 +87,43 @@ export interface UserSettings {
   created_at: string;
   updated_at: string;
 }
+
+export interface FieldPlayer {
+  id: string;
+  playerId: string | null;
+  name: string;
+  number: number;
+  x: number;
+  y: number;
+}
+
+export interface Tactic {
+  id: string;
+  team_id: string;
+  name: string;
+  description?: string;
+  formation: string;
+  layout_json: {
+    players: FieldPlayer[];
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PhotoFolder {
+  id: string;
+  team_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface TeamPhoto {
+  id: string;
+  team_id: string;
+  folder_id?: string;
+  url: string;
+  title?: string;
+  description?: string;
+  photo_date?: string;
+  created_at: string;
+}

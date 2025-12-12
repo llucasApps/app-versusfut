@@ -2,7 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus, Loader2 } from 'lucide-react';
-import { Player } from '@/lib/supabase';
+import { Player, PhotoFolder, TeamPhoto } from '@/lib/supabase';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -18,16 +18,6 @@ interface Pasta {
   timeId: string;
   nome: string;
   criadaEm: string;
-}
-
-interface FotoTime {
-  id: string;
-  timeId: string;
-  url: string;
-  titulo?: string;
-  data: string;
-  descricao?: string;
-  pastaId?: string;
 }
 
 interface VideoTutorial {
@@ -73,11 +63,11 @@ export default function TeamDetailPage() {
 
     fetchTeam();
   }, [params.id]);
-  const [fotos, setFotos] = useState<FotoTime[]>([]);
-  const [pastasFotos, setPastasFotos] = useState<Pasta[]>([]);
+  const [fotos, setFotos] = useState<TeamPhoto[]>([]);
+  const [pastasFotos, setPastasFotos] = useState<PhotoFolder[]>([]);
   const [pastaFotosAtual, setPastaFotosAtual] = useState<string | null>(null);
   const [showAddPastaFotosModal, setShowAddPastaFotosModal] = useState(false);
-  const [editingPastaFotos, setEditingPastaFotos] = useState<Pasta | null>(null);
+  const [editingPastaFotos, setEditingPastaFotos] = useState<PhotoFolder | null>(null);
   const [novaPastaFotos, setNovaPastaFotos] = useState('');
   
   const [videos, setVideos] = useState<VideoTutorial[]>([]);
@@ -89,7 +79,7 @@ export default function TeamDetailPage() {
   
   const [showAddFotoModal, setShowAddFotoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
-  const [selectedFoto, setSelectedFoto] = useState<FotoTime | null>(null);
+  const [selectedFoto, setSelectedFoto] = useState<TeamPhoto | null>(null);
   const [showAddVideoModal, setShowAddVideoModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoTutorial | null>(null);
@@ -151,19 +141,39 @@ export default function TeamDetailPage() {
     setMounted(true);
   }, []);
 
-  // Carregar fotos do localStorage
+  // Carregar fotos e pastas do Supabase
   useEffect(() => {
-    if (team) {
-      const storedFotos = localStorage.getItem(`fotos_${team.id}`);
-      if (storedFotos) {
-        setFotos(JSON.parse(storedFotos));
+    const fetchPhotosAndFolders = async () => {
+      if (!team) return;
+
+      // Buscar pastas de fotos
+      const { data: foldersData, error: foldersError } = await supabase
+        .from('photo_folders')
+        .select('*')
+        .eq('team_id', team.id)
+        .order('created_at', { ascending: true });
+
+      if (foldersError) {
+        console.error('Erro ao buscar pastas de fotos:', foldersError);
+      } else {
+        setPastasFotos(foldersData || []);
       }
-      // Carregar pastas de fotos
-      const storedPastasFotos = localStorage.getItem(`pastas_fotos_${team.id}`);
-      if (storedPastasFotos) {
-        setPastasFotos(JSON.parse(storedPastasFotos));
+
+      // Buscar fotos
+      const { data: photosData, error: photosError } = await supabase
+        .from('team_photos')
+        .select('*')
+        .eq('team_id', team.id)
+        .order('created_at', { ascending: false });
+
+      if (photosError) {
+        console.error('Erro ao buscar fotos:', photosError);
+      } else {
+        setFotos(photosData || []);
       }
-    }
+    };
+
+    fetchPhotosAndFolders();
   }, [team]);
 
   // Carregar vídeos e pastas de vídeos do localStorage
@@ -267,11 +277,16 @@ export default function TeamDetailPage() {
     }
   };
 
-  // Salvar fotos no localStorage
-  const saveFotos = (updatedFotos: FotoTime[]) => {
-    if (team) {
-      localStorage.setItem(`fotos_${team.id}`, JSON.stringify(updatedFotos));
-      setFotos(updatedFotos);
+  // Função auxiliar para recarregar fotos do Supabase
+  const reloadFotos = async () => {
+    if (!team) return;
+    const { data, error } = await supabase
+      .from('team_photos')
+      .select('*')
+      .eq('team_id', team.id)
+      .order('created_at', { ascending: false });
+    if (!error && data) {
+      setFotos(data);
     }
   };
 
@@ -432,27 +447,42 @@ export default function TeamDetailPage() {
     setUploadingFoto(true);
     
     try {
-      // TODO: Implementar upload para Supabase Storage
-      // Quando integrar com Supabase:
-      // for (const file of fotoFiles) {
-      //   const { data, error } = await supabase.storage
-      //     .from('fotos-times')
-      //     .upload(`${team.id}/${Date.now()}-${file.name}`, file);
-      //   const url = supabase.storage.from('fotos-times').getPublicUrl(data.path).data.publicUrl;
-      // }
-      
-      // Criar uma foto para cada arquivo
-      const novasFotos: FotoTime[] = fotoFiles.map((file, index) => ({
-        id: `${Date.now()}-${index}`,
-        timeId: team.id,
-        titulo: fotoFiles.length === 1 ? (newFoto.titulo || undefined) : undefined,
-        url: fotoPreviews[index] || '', // Temporário: usar preview. Substituir por URL do Supabase
-        data: new Date().toISOString().split('T')[0],
-        descricao: fotoFiles.length === 1 ? (newFoto.descricao || undefined) : undefined,
-        pastaId: pastaFotosAtual || undefined
-      }));
+      for (const file of fotoFiles) {
+        // Upload para Supabase Storage
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${team.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('team-photos')
+          .upload(fileName, file, { upsert: true });
 
-      saveFotos([...fotos, ...novasFotos]);
+        if (uploadError) {
+          console.error('Erro ao fazer upload:', uploadError);
+          continue;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('team-photos')
+          .getPublicUrl(fileName);
+
+        // Salvar metadados no banco
+        const { error: insertError } = await supabase
+          .from('team_photos')
+          .insert({
+            team_id: team.id,
+            url: publicUrl,
+            title: fotoFiles.length === 1 ? (newFoto.titulo || null) : null,
+            description: fotoFiles.length === 1 ? (newFoto.descricao || null) : null,
+            folder_id: pastaFotosAtual || null,
+            photo_date: new Date().toISOString().split('T')[0]
+          });
+
+        if (insertError) {
+          console.error('Erro ao salvar foto:', insertError);
+        }
+      }
+
+      await reloadFotos();
       setShowAddFotoModal(false);
       setNewFoto({ titulo: '', descricao: '' });
       setFotoFiles([]);
@@ -465,48 +495,84 @@ export default function TeamDetailPage() {
     }
   };
 
-  // Funções para gerenciar pastas de fotos
-  const savePastasFotos = (newPastas: Pasta[]) => {
-    setPastasFotos(newPastas);
-    localStorage.setItem(`pastas_fotos_${params.id}`, JSON.stringify(newPastas));
+  // Função auxiliar para recarregar pastas de fotos do Supabase
+  const reloadPastasFotos = async () => {
+    if (!team) return;
+    const { data, error } = await supabase
+      .from('photo_folders')
+      .select('*')
+      .eq('team_id', team.id)
+      .order('created_at', { ascending: true });
+    if (!error && data) {
+      setPastasFotos(data);
+    }
   };
 
-  const handleAddPastaFotos = () => {
+  const handleAddPastaFotos = async () => {
     if (!team || !novaPastaFotos.trim()) return;
 
     if (editingPastaFotos) {
-      const pastasAtualizadas = pastasFotos.map((p: Pasta) =>
-        p.id === editingPastaFotos.id ? { ...p, nome: novaPastaFotos.trim() } : p
-      );
-      savePastasFotos(pastasAtualizadas);
+      // Atualizar pasta existente
+      const { error } = await supabase
+        .from('photo_folders')
+        .update({ name: novaPastaFotos.trim() })
+        .eq('id', editingPastaFotos.id);
+
+      if (error) {
+        console.error('Erro ao atualizar pasta:', error);
+        alert('Erro ao atualizar pasta. Tente novamente.');
+        return;
+      }
     } else {
-      const pasta: Pasta = {
-        id: Date.now().toString(),
-        timeId: team.id,
-        nome: novaPastaFotos.trim(),
-        criadaEm: new Date().toISOString()
-      };
-      savePastasFotos([...pastasFotos, pasta]);
+      // Criar nova pasta
+      const { error } = await supabase
+        .from('photo_folders')
+        .insert({
+          team_id: team.id,
+          name: novaPastaFotos.trim()
+        });
+
+      if (error) {
+        console.error('Erro ao criar pasta:', error);
+        alert('Erro ao criar pasta. Tente novamente.');
+        return;
+      }
     }
 
+    await reloadPastasFotos();
     setShowAddPastaFotosModal(false);
     setEditingPastaFotos(null);
     setNovaPastaFotos('');
   };
 
-  const handleEditPastaFotos = (pasta: Pasta) => {
+  const handleEditPastaFotos = (pasta: PhotoFolder) => {
     setEditingPastaFotos(pasta);
-    setNovaPastaFotos(pasta.nome);
+    setNovaPastaFotos(pasta.name);
     setShowAddPastaFotosModal(true);
   };
 
-  const handleRemovePastaFotos = (pastaId: string) => {
+  const handleRemovePastaFotos = async (pastaId: string) => {
     if (confirm('Excluir esta pasta? As fotos dentro dela serão movidas para a raiz.')) {
-      const fotosAtualizadas = fotos.map(f => 
-        f.pastaId === pastaId ? { ...f, pastaId: undefined } : f
-      );
-      saveFotos(fotosAtualizadas);
-      savePastasFotos(pastasFotos.filter((p: Pasta) => p.id !== pastaId));
+      // Mover fotos para a raiz (folder_id = null)
+      await supabase
+        .from('team_photos')
+        .update({ folder_id: null })
+        .eq('folder_id', pastaId);
+
+      // Excluir pasta
+      const { error } = await supabase
+        .from('photo_folders')
+        .delete()
+        .eq('id', pastaId);
+
+      if (error) {
+        console.error('Erro ao excluir pasta:', error);
+        alert('Erro ao excluir pasta. Tente novamente.');
+        return;
+      }
+
+      await reloadPastasFotos();
+      await reloadFotos();
       if (pastaFotosAtual === pastaId) setPastaFotosAtual(null);
     }
   };
@@ -559,15 +625,38 @@ export default function TeamDetailPage() {
 
   // Fotos filtradas pela pasta atual
   const fotosFiltradas = fotos.filter(f => 
-    pastaFotosAtual ? f.pastaId === pastaFotosAtual : !f.pastaId
+    pastaFotosAtual ? f.folder_id === pastaFotosAtual : !f.folder_id
   );
 
-  const handleRemoveFoto = (id: string) => {
-    saveFotos(fotos.filter(f => f.id !== id));
+  const handleRemoveFoto = async (id: string) => {
+    // Buscar a foto para pegar a URL e excluir do Storage
+    const foto = fotos.find(f => f.id === id);
+    if (foto) {
+      // Extrair o path do arquivo da URL
+      const urlParts = foto.url.split('/team-photos/');
+      if (urlParts.length > 1) {
+        const filePath = urlParts[1];
+        await supabase.storage.from('team-photos').remove([filePath]);
+      }
+    }
+
+    // Excluir do banco
+    const { error } = await supabase
+      .from('team_photos')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao excluir foto:', error);
+      alert('Erro ao excluir foto. Tente novamente.');
+      return;
+    }
+
+    await reloadFotos();
     setShowFotoModal(false);
   };
 
-  const handleViewFoto = (foto: FotoTime) => {
+  const handleViewFoto = (foto: TeamPhoto) => {
     setSelectedFoto(foto);
     setShowFotoModal(true);
   };
@@ -1283,7 +1372,7 @@ export default function TeamDetailPage() {
                     </button>
                     <span className="text-white/60">|</span>
                     <span className="text-white/80 font-medium">
-                      📁 {pastasFotos.find((p: Pasta) => p.id === pastaFotosAtual)?.nome}
+                      📁 {pastasFotos.find((p) => p.id === pastaFotosAtual)?.name}
                     </span>
                   </div>
                 )}
@@ -1311,8 +1400,8 @@ export default function TeamDetailPage() {
               <div className="mb-6">
                 <h3 className="text-white/60 text-sm font-medium mb-3">Pastas</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {pastasFotos.map((pasta: Pasta) => {
-                    const fotosNaPasta = fotos.filter(f => f.pastaId === pasta.id).length;
+                  {pastasFotos.map((pasta) => {
+                    const fotosNaPasta = fotos.filter(f => f.folder_id === pasta.id).length;
                     return (
                       <div
                         key={pasta.id}
@@ -1320,7 +1409,7 @@ export default function TeamDetailPage() {
                         onClick={() => setPastaFotosAtual(pasta.id)}
                       >
                         <div className="text-4xl mb-2">📁</div>
-                        <h4 className="text-white font-medium truncate">{pasta.nome}</h4>
+                        <h4 className="text-white font-medium truncate">{pasta.name}</h4>
                         <p className="text-white/40 text-sm">{fotosNaPasta} foto{fotosNaPasta !== 1 ? 's' : ''}</p>
                         
                         {/* Botões de ação */}
@@ -1379,7 +1468,7 @@ export default function TeamDetailPage() {
                       <div className="aspect-video bg-white/10 relative overflow-hidden">
                         <img 
                           src={foto.url} 
-                          alt={foto.titulo || 'Foto'}
+                          alt={foto.title || 'Foto'}
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400&h=300&fit=crop';
@@ -1401,12 +1490,12 @@ export default function TeamDetailPage() {
                         </div>
                       </div>
                       <div className="p-4">
-                        {foto.titulo && <h3 className="text-white font-bold mb-1">{foto.titulo}</h3>}
+                        {foto.title && <h3 className="text-white font-bold mb-1">{foto.title}</h3>}
                         <p className="text-white/60 text-sm mb-2">
-                          {new Date(foto.data).toLocaleDateString('pt-BR')}
+                          {foto.photo_date ? new Date(foto.photo_date).toLocaleDateString('pt-BR') : new Date(foto.created_at).toLocaleDateString('pt-BR')}
                         </p>
-                        {foto.descricao && (
-                          <p className="text-white/40 text-sm line-clamp-2">{foto.descricao}</p>
+                        {foto.description && (
+                          <p className="text-white/40 text-sm line-clamp-2">{foto.description}</p>
                         )}
                       </div>
                     </div>
@@ -1729,7 +1818,7 @@ export default function TeamDetailPage() {
                 Adicionar Foto
                 {pastaFotosAtual && (
                   <span className="text-base font-normal text-white/60 ml-2">
-                    em 📁 {pastasFotos.find((p: Pasta) => p.id === pastaFotosAtual)?.nome}
+                    em 📁 {pastasFotos.find((p) => p.id === pastaFotosAtual)?.name}
                   </span>
                 )}
               </h3>
@@ -1881,7 +1970,7 @@ export default function TeamDetailPage() {
           <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                {selectedFoto.titulo || 'Foto'}
+                {selectedFoto.title || 'Foto'}
               </h3>
               <button
                 onClick={() => setShowFotoModal(false)}
@@ -1894,7 +1983,7 @@ export default function TeamDetailPage() {
             <div className="mb-6">
               <img 
                 src={selectedFoto.url} 
-                alt={selectedFoto.titulo || 'Foto'}
+                alt={selectedFoto.title || 'Foto'}
                 className="w-full rounded-xl"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&h=600&fit=crop';
@@ -1905,14 +1994,14 @@ export default function TeamDetailPage() {
             <div className="space-y-3 mb-6">
               <div className="flex items-center gap-2 text-white/60">
                 <Calendar className="w-5 h-5" />
-                <span>{new Date(selectedFoto.data).toLocaleDateString('pt-BR', { 
+                <span>{new Date(selectedFoto.photo_date || selectedFoto.created_at).toLocaleDateString('pt-BR', { 
                   day: '2-digit', 
                   month: 'long', 
                   year: 'numeric' 
                 })}</span>
               </div>
-              {selectedFoto.descricao && (
-                <p className="text-white/80">{selectedFoto.descricao}</p>
+              {selectedFoto.description && (
+                <p className="text-white/80">{selectedFoto.description}</p>
               )}
             </div>
 

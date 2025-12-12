@@ -1,30 +1,11 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { myTeams } from '@/lib/mock-data';
-import { ArrowLeft, Save, Users, X, UserPlus } from 'lucide-react';
+import { supabase, Team, Player, FieldPlayer, Tactic } from '@/lib/supabase';
+import { ArrowLeft, Save, Users, X, UserPlus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-
-// Jogador do elenco
-interface TeamPlayer {
-  id: string;
-  name: string;
-  position: string;
-  number: number;
-  available: boolean;
-}
-
-// Jogador posicionado no campo
-interface FieldPlayer {
-  id: string;
-  playerId: string | null;
-  name: string;
-  number: number;
-  x: number;
-  y: number;
-}
 
 // Formações disponíveis
 const FORMACOES = [
@@ -41,17 +22,6 @@ const FORMACOES = [
 ] as const;
 
 type Formacao = typeof FORMACOES[number];
-
-interface Tatica {
-  id: string;
-  timeId: string;
-  nome: string;
-  descricao: string;
-  formacao: Formacao;
-  layoutJson: {
-    players: FieldPlayer[];
-  };
-}
 
 // Posições para cada formação (x, y) - Goleiro sempre na mesma posição
 const FORMATION_POSITIONS: Record<Formacao, Array<{ x: number; y: number }>> = {
@@ -140,9 +110,9 @@ const getFormationPlayers = (formacao: Formacao, currentPlayers?: FieldPlayer[])
 export default function EditarTaticaPage() {
   const params = useParams();
   const router = useRouter();
-  const team = myTeams.find(t => t.id === params.id);
   const fieldRef = useRef<HTMLDivElement>(null);
   
+  const [team, setTeam] = useState<Team | null>(null);
   const [nome, setNome] = useState('');
   const [formacao, setFormacao] = useState<Formacao>('4-4-2');
   const [descricao, setDescricao] = useState('');
@@ -150,34 +120,62 @@ export default function EditarTaticaPage() {
   const [draggingPlayer, setDraggingPlayer] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
-  const [teamPlayers, setTeamPlayers] = useState<TeamPlayer[]>([]);
+  const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
 
-  // Carregar jogadores do elenco
+  // Buscar time, jogadores e tática do Supabase
   useEffect(() => {
-    if (team) {
-      const storedPlayers = localStorage.getItem(`team_${params.id}_players`);
-      if (storedPlayers) {
-        setTeamPlayers(JSON.parse(storedPlayers));
-      } else if (team.players) {
-        setTeamPlayers(team.players as TeamPlayer[]);
-      }
-    }
-  }, [team, params.id]);
+    const fetchData = async () => {
+      if (!params.id || !params.taticaId) return;
+      
+      setLoading(true);
+      
+      // Buscar time
+      const { data: teamData, error: teamError } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', params.id)
+        .single();
 
-  useEffect(() => {
-    // Carregar tática para edição
-    const stored = localStorage.getItem(`taticas_${params.id}`);
-    if (stored) {
-      const taticas: Tatica[] = JSON.parse(stored);
-      const tatica = taticas.find(t => t.id === params.taticaId);
-      if (tatica) {
-        setNome(tatica.nome);
-        setFormacao(tatica.formacao || '4-4-2');
-        setDescricao(tatica.descricao);
-        setFieldPlayers(tatica.layoutJson.players);
+      if (teamError) {
+        console.error('Erro ao buscar time:', teamError);
+        setTeam(null);
+      } else {
+        setTeam(teamData);
       }
-    }
-    setLoading(false);
+
+      // Buscar jogadores do elenco
+      const { data: playersData, error: playersError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('team_id', params.id)
+        .order('number', { ascending: true });
+
+      if (playersError) {
+        console.error('Erro ao buscar jogadores:', playersError);
+      } else {
+        setTeamPlayers(playersData || []);
+      }
+
+      // Buscar tática para edição
+      const { data: tacticData, error: tacticError } = await supabase
+        .from('tactics')
+        .select('*')
+        .eq('id', params.taticaId)
+        .single();
+
+      if (tacticError) {
+        console.error('Erro ao buscar tática:', tacticError);
+      } else if (tacticData) {
+        setNome(tacticData.name);
+        setFormacao((tacticData.formation as Formacao) || '4-4-2');
+        setDescricao(tacticData.description || '');
+        setFieldPlayers(tacticData.layout_json.players);
+      }
+
+      setLoading(false);
+    };
+
+    fetchData();
   }, [params.id, params.taticaId]);
 
   // Jogadores já escalados
@@ -191,7 +189,7 @@ export default function EditarTaticaPage() {
   );
 
   // Atribuir jogador a uma posição
-  const assignPlayerToPosition = (positionId: string, player: TeamPlayer) => {
+  const assignPlayerToPosition = (positionId: string, player: Player) => {
     setFieldPlayers(prev =>
       prev.map(fp =>
         fp.id === positionId
@@ -288,29 +286,27 @@ export default function EditarTaticaPage() {
     setDraggingPlayer(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!nome.trim()) {
       alert('Por favor, dê um nome para a tática');
       return;
     }
 
-    const tatica: Tatica = {
-      id: params.taticaId as string,
-      timeId: params.id as string,
-      nome,
-      formacao,
-      descricao,
-      layoutJson: { players: fieldPlayers }
-    };
+    const { error } = await supabase
+      .from('tactics')
+      .update({
+        name: nome,
+        formation: formacao,
+        description: descricao,
+        layout_json: { players: fieldPlayers },
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.taticaId);
 
-    // Atualizar no localStorage
-    const stored = localStorage.getItem(`taticas_${params.id}`);
-    const taticas: Tatica[] = stored ? JSON.parse(stored) : [];
-    
-    const index = taticas.findIndex(t => t.id === params.taticaId);
-    if (index !== -1) {
-      taticas[index] = tatica;
-      localStorage.setItem(`taticas_${params.id}`, JSON.stringify(taticas));
+    if (error) {
+      console.error('Erro ao atualizar tática:', error);
+      alert('Erro ao atualizar tática. Tente novamente.');
+      return;
     }
 
     router.push(`/times/${params.id}/taticas`);
@@ -318,8 +314,11 @@ export default function EditarTaticaPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
-        <div className="text-white text-xl">Carregando...</div>
+      <div className="min-h-screen bg-[#0D0D0D]">
+        <Navigation />
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="w-8 h-8 text-[#FF6B00] animate-spin" />
+        </div>
       </div>
     );
   }

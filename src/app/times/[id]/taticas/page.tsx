@@ -1,53 +1,85 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { myTeams } from '@/lib/mock-data';
-import { ArrowLeft, Plus, Edit, Trash2, Clipboard } from 'lucide-react';
+import { supabase, Team, Tactic } from '@/lib/supabase';
+import { ArrowLeft, Plus, Edit, Trash2, Clipboard, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-
-interface FieldPlayer {
-  id: string;
-  playerId: string | null;
-  name: string;
-  number: number;
-  x: number;
-  y: number;
-}
-
-interface Tatica {
-  id: string;
-  timeId: string;
-  nome: string;
-  descricao: string;
-  formacao: string;
-  layoutJson: {
-    players: FieldPlayer[];
-  };
-}
 
 export default function TaticasPage() {
   const params = useParams();
-  const router = useRouter();
-  const team = myTeams.find(t => t.id === params.id);
-  const [taticas, setTaticas] = useState<Tatica[]>([]);
+  const [team, setTeam] = useState<Team | null>(null);
+  const [taticas, setTaticas] = useState<Tactic[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // Buscar time e táticas do Supabase
   useEffect(() => {
-    // Carregar táticas do localStorage
-    const stored = localStorage.getItem(`taticas_${params.id}`);
-    if (stored) {
-      setTaticas(JSON.parse(stored));
-    }
+    const fetchData = async () => {
+      if (!params.id) return;
+      
+      setLoading(true);
+      
+      // Buscar time
+      const { data: teamData, error: teamError } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', params.id)
+        .single();
+
+      if (teamError) {
+        console.error('Erro ao buscar time:', teamError);
+        setTeam(null);
+      } else {
+        setTeam(teamData);
+      }
+
+      // Buscar táticas
+      const { data: tacticsData, error: tacticsError } = await supabase
+        .from('tactics')
+        .select('*')
+        .eq('team_id', params.id)
+        .order('created_at', { ascending: false });
+
+      if (tacticsError) {
+        console.error('Erro ao buscar táticas:', tacticsError);
+      } else {
+        setTaticas(tacticsData || []);
+      }
+
+      setLoading(false);
+    };
+
+    fetchData();
   }, [params.id]);
 
-  const handleDelete = (taticaId: string) => {
+  const handleDelete = async (taticaId: string) => {
     if (confirm('Tem certeza que deseja excluir esta tática?')) {
-      const updated = taticas.filter(t => t.id !== taticaId);
-      setTaticas(updated);
-      localStorage.setItem(`taticas_${params.id}`, JSON.stringify(updated));
+      const { error } = await supabase
+        .from('tactics')
+        .delete()
+        .eq('id', taticaId);
+
+      if (error) {
+        console.error('Erro ao excluir tática:', error);
+        alert('Erro ao excluir tática. Tente novamente.');
+        return;
+      }
+
+      setTaticas(taticas.filter(t => t.id !== taticaId));
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D]">
+        <Navigation />
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="w-8 h-8 text-[#FF6B00] animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   if (!team) {
     return (
@@ -78,7 +110,11 @@ export default function TaticasPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-4 mb-3">
-              <div className="text-5xl">{team.logo}</div>
+              {team.logo && (team.logo.startsWith('http') || team.logo.startsWith('data:')) ? (
+                <img src={team.logo} alt={team.name} className="w-14 h-14 rounded-full object-cover" />
+              ) : (
+                <div className="text-5xl">{team.logo || '⚽'}</div>
+              )}
               <h1 className="text-3xl sm:text-4xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 Táticas de {team.name}
               </h1>
@@ -105,14 +141,14 @@ export default function TaticasPage() {
                   <div className="flex items-start justify-between mb-3">
                     <Clipboard className="w-8 h-8 text-[#FF6B00]" />
                     <div className="px-3 py-1 bg-[#FF6B00]/10 rounded-full">
-                      <div className="text-[#FF6B00] text-xs font-bold">{tatica.formacao || '4-4-2'}</div>
+                      <div className="text-[#FF6B00] text-xs font-bold">{tatica.formation || '4-4-2'}</div>
                     </div>
                   </div>
                   
                   <h3 className="text-xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    {tatica.nome}
+                    {tatica.name}
                   </h3>
-                  <p className="text-white/60 text-sm line-clamp-2">{tatica.descricao}</p>
+                  <p className="text-white/60 text-sm line-clamp-2">{tatica.description}</p>
                 </div>
 
                 {/* Mini Field Preview */}
@@ -125,7 +161,7 @@ export default function TaticasPage() {
                     </div>
                     
                     {/* Players */}
-                    {tatica.layoutJson.players.map((player) => (
+                    {tatica.layout_json.players.map((player) => (
                       <div
                         key={player.id}
                         className={`absolute w-5 h-5 rounded-full border-2 shadow-lg flex items-center justify-center text-[8px] font-bold text-white ${
