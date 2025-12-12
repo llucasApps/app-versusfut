@@ -241,6 +241,32 @@ export default function TeamDetailPage() {
     }
   };
 
+  // Upload de foto de jogador para o Supabase Storage
+  const uploadPlayerPhoto = async (file: File, playerId: string): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${playerId}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('player-photos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) {
+        console.error('Erro ao fazer upload:', uploadError);
+        return null;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('player-photos')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Erro no upload:', error);
+      return null;
+    }
+  };
+
   // Salvar fotos no localStorage
   const saveFotos = (updatedFotos: FotoTime[]) => {
     if (team) {
@@ -996,35 +1022,23 @@ export default function TeamDetailPage() {
                 {/* Foto do Capitão */}
                 <div className="flex flex-col items-center mb-4">
                   <div className="relative group">
-                    {capitaoFoto ? (
-                      <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
-                        <img 
-                          src={capitaoFoto} 
-                          alt="Capitão do time"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-28 h-28 rounded-full bg-white/5 border-4 border-dashed border-white/20 flex items-center justify-center">
-                        <Camera className="w-10 h-10 text-white/30" />
-                      </div>
-                    )}
-                    
-                    {/* Botão de upload sobreposto */}
-                    {isOwnerMode && (
-                      <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                        <div className="flex flex-col items-center text-white">
-                          <Upload className="w-6 h-6 mb-1" />
-                          <span className="text-xs">{capitaoFoto ? 'Trocar' : 'Carregar'}</span>
+                    {(() => {
+                      const captain = customPlayers.find(p => p.is_captain);
+                      const captainPhoto = captain?.foto;
+                      return captainPhoto ? (
+                        <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
+                          <img 
+                            src={captainPhoto} 
+                            alt="Capitão do time"
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleCapitaoFotoUpload}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
+                      ) : (
+                        <div className="w-28 h-28 rounded-full bg-white/5 border-4 border-dashed border-white/20 flex items-center justify-center">
+                          <Camera className="w-10 h-10 text-white/30" />
+                        </div>
+                      );
+                    })()}
                     
                     {/* Badge de capitão */}
                     <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#FF6B00] rounded-full flex items-center justify-center border-2 border-[#0D0D0D]">
@@ -1035,18 +1049,18 @@ export default function TeamDetailPage() {
                   {/* Nome do Capitão */}
                   <div className="mt-4 text-center">
                     <div className="text-white font-bold text-lg">
-                      {mounted ? (capitaoNome || customPlayers[0]?.name || 'Selecione o Capitão') : 'Capitão'}
+                      {mounted ? (customPlayers.find(p => p.is_captain)?.name || 'Selecione o Capitão') : 'Capitão'}
                     </div>
                     <div className="text-[#FF6B00] text-sm font-medium">
-                      {mounted ? (customPlayers[0]?.position || 'Capitão') : 'Capitão'}
+                      {mounted ? (customPlayers.find(p => p.is_captain)?.position || 'Capitão') : 'Capitão'}
                     </div>
                   </div>
                 </div>
 
-                {/* Instrução quando não há foto */}
-                {!capitaoFoto && isOwnerMode && (
+                {/* Instrução quando não há capitão */}
+                {!customPlayers.find(p => p.is_captain) && isOwnerMode && (
                   <p className="text-white/40 text-xs text-center mt-2">
-                    Passe o mouse sobre a imagem para carregar uma foto
+                    Defina um jogador como capitão no elenco
                   </p>
                 )}
               </div>
@@ -2191,24 +2205,26 @@ export default function TeamDetailPage() {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = async () => {
-                              const base64 = reader.result as string;
-                              setEditPlayerData({ ...editPlayerData, foto: base64 });
+                            // Upload para o Supabase Storage
+                            const photoUrl = await uploadPlayerPhoto(file, selectedPlayer.id);
+                            
+                            if (photoUrl) {
+                              setEditPlayerData({ ...editPlayerData, foto: photoUrl });
                               
                               // Atualizar no Supabase
                               await supabase
                                 .from('players')
-                                .update({ foto: base64 })
+                                .update({ foto: photoUrl })
                                 .eq('id', selectedPlayer.id);
                               
                               const updatedPlayers = customPlayers.map(p => 
-                                p.id === selectedPlayer.id ? { ...p, foto: base64 } as Player : p
+                                p.id === selectedPlayer.id ? { ...p, foto: photoUrl } as Player : p
                               );
                               setCustomPlayers(updatedPlayers);
-                              setSelectedPlayer({ ...selectedPlayer, foto: base64 });
-                            };
-                            reader.readAsDataURL(file);
+                              setSelectedPlayer({ ...selectedPlayer, foto: photoUrl });
+                            } else {
+                              alert('Erro ao fazer upload da foto. Tente novamente.');
+                            }
                           }
                         }}
                         className="hidden"
