@@ -15,6 +15,77 @@ type Tab = 'resumo' | 'elenco' | 'taticas' | 'fotos' | 'videos';
 
 const categorias = ['Finalização', 'Tática', 'Preparação Física', 'Passe', 'Defesa', 'Drible'];
 
+// Função para converter qualquer URL do YouTube para formato embed
+function convertToEmbedUrl(url: string): string {
+  if (!url) return url;
+  
+  // Se já é uma URL de embed, retorna como está
+  if (url.includes('youtube.com/embed/')) {
+    return url;
+  }
+  
+  let videoId = '';
+  
+  // Formato: https://www.youtube.com/watch?v=VIDEO_ID
+  const watchMatch = url.match(/[?&]v=([^&]+)/);
+  if (watchMatch) {
+    videoId = watchMatch[1];
+  }
+  
+  // Formato: https://youtu.be/VIDEO_ID
+  const shortMatch = url.match(/youtu\.be\/([^?&]+)/);
+  if (shortMatch) {
+    videoId = shortMatch[1];
+  }
+  
+  // Formato: https://www.youtube.com/shorts/VIDEO_ID
+  const shortsMatch = url.match(/youtube\.com\/shorts\/([^?&]+)/);
+  if (shortsMatch) {
+    videoId = shortsMatch[1];
+  }
+  
+  // Formato: https://www.youtube.com/live/VIDEO_ID
+  const liveMatch = url.match(/youtube\.com\/live\/([^?&]+)/);
+  if (liveMatch) {
+    videoId = liveMatch[1];
+  }
+  
+  if (videoId) {
+    return `https://www.youtube.com/embed/${videoId}`;
+  }
+  
+  return url;
+}
+
+// Função para extrair o ID do vídeo do YouTube de qualquer URL
+function getYouTubeVideoId(url: string): string | null {
+  if (!url) return null;
+  
+  const patterns = [
+    /[?&]v=([^&]+)/,           // watch?v=
+    /youtu\.be\/([^?&]+)/,     // youtu.be/
+    /youtube\.com\/embed\/([^?&]+)/, // embed/
+    /youtube\.com\/shorts\/([^?&]+)/, // shorts/
+    /youtube\.com\/live\/([^?&]+)/    // live/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  
+  return null;
+}
+
+// Função para obter a thumbnail do YouTube
+function getYouTubeThumbnail(url: string): string | null {
+  const videoId = getYouTubeVideoId(url);
+  if (videoId) {
+    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  }
+  return null;
+}
+
 export default function TeamDetailPage() {
   const params = useParams();
   const { user } = useAuth();
@@ -704,13 +775,16 @@ export default function TeamDetailPage() {
     if (!team || !videoFormData.url_embed) return;
 
     setSavingVideo(true);
+    // Converter URL para formato embed
+    const embedUrl = convertToEmbedUrl(videoFormData.url_embed);
+    
     const { error } = await supabase
       .from('video_tutorials')
       .insert({
         team_id: team.id,
         titulo: videoFormData.titulo || 'Sem título',
         descricao: videoFormData.descricao || null,
-        url_embed: videoFormData.url_embed,
+        url_embed: embedUrl,
         categoria: videoFormData.categoria || 'Tática',
         folder_id: pastaVideosAtual || null
       });
@@ -729,12 +803,15 @@ export default function TeamDetailPage() {
     if (!editingVideo || !videoFormData.url_embed) return;
 
     setSavingVideo(true);
+    // Converter URL para formato embed
+    const embedUrl = convertToEmbedUrl(videoFormData.url_embed);
+    
     const { error } = await supabase
       .from('video_tutorials')
       .update({
         titulo: videoFormData.titulo || 'Sem título',
         descricao: videoFormData.descricao || null,
-        url_embed: videoFormData.url_embed,
+        url_embed: embedUrl,
         categoria: videoFormData.categoria || 'Tática'
       })
       .eq('id', editingVideo.id);
@@ -1707,11 +1784,22 @@ export default function TeamDetailPage() {
               </div>
             ) : filteredVideos.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredVideos.map((video) => (
+                {filteredVideos.map((video) => {
+                  const thumbnail = getYouTubeThumbnail(video.url_embed);
+                  return (
                   <div key={video.id} className="bg-white/5 rounded-xl overflow-hidden hover:bg-white/10 transition-all group">
-                    <div className="aspect-video bg-white/10 relative overflow-hidden">
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                        <Play className="w-16 h-16 text-white/80" />
+                    <div className="aspect-video bg-white/10 relative overflow-hidden cursor-pointer" onClick={() => openVideoModal(video)}>
+                      {thumbnail ? (
+                        <img 
+                          src={thumbnail} 
+                          alt={video.titulo || 'Thumbnail do vídeo'}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : null}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all">
+                        <div className="w-16 h-16 bg-[#FF6B00] rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Play className="w-8 h-8 text-white ml-1" fill="white" />
+                        </div>
                       </div>
                     </div>
 
@@ -1755,7 +1843,8 @@ export default function TeamDetailPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2118,11 +2207,26 @@ export default function TeamDetailPage() {
                   value={videoFormData.url_embed}
                   onChange={(e) => setVideoFormData({ ...videoFormData, url_embed: e.target.value })}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
-                  placeholder="https://www.youtube.com/embed/..."
+                  placeholder="https://www.youtube.com/watch?v=... ou https://youtu.be/..."
                 />
                 <p className="text-white/40 text-sm mt-2">
-                  Use o formato de embed do YouTube (clique em Compartilhar → Incorporar)
+                  Cole qualquer link do YouTube (da barra de endereço, compartilhamento ou embed)
                 </p>
+                
+                {/* Pré-visualização do vídeo */}
+                {videoFormData.url_embed && getYouTubeVideoId(videoFormData.url_embed) && (
+                  <div className="mt-4">
+                    <p className="text-white/60 text-sm mb-2">Pré-visualização:</p>
+                    <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                      <iframe
+                        src={convertToEmbedUrl(videoFormData.url_embed)}
+                        className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
