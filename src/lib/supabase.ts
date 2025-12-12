@@ -40,6 +40,27 @@ export interface TeamPlayer {
   joined_at: string;
 }
 
+export interface Player {
+  id: string;
+  team_id: string;
+  name: string;
+  position: string;
+  number: number;
+  available: boolean;
+  age?: number;
+  foto?: string;
+  phone?: string;
+  preferred_foot?: 'Direito' | 'Esquerdo' | 'Ambos';
+  secondary_position?: string;
+  is_captain?: boolean;
+  is_free_kick_taker?: boolean;
+  is_guest?: boolean;
+  goals: number;
+  assists: number;
+  matches: number;
+  created_at: string;
+}
+
 export interface Game {
   id: string;
   team1_id: string;

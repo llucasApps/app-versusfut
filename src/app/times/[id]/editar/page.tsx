@@ -1,8 +1,8 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { myTeams } from '@/lib/mock-data';
-import { ArrowLeft, Save, User, Phone, Upload, Image as ImageIcon, CheckCircle, XCircle, MapPin, Users } from 'lucide-react';
+import { supabase, Team } from '@/lib/supabase';
+import { ArrowLeft, Save, User, Phone, Upload, Image as ImageIcon, CheckCircle, XCircle, MapPin, Users, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
@@ -10,7 +10,8 @@ import { useState, useEffect, useRef } from 'react';
 export default function EditarTimePage() {
   const params = useParams();
   const router = useRouter();
-  const team = myTeams.find(t => t.id === params.id);
+  const [team, setTeam] = useState<Team | null>(null);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
@@ -43,46 +44,68 @@ export default function EditarTimePage() {
     }
   };
 
-  // Carregar dados do time
+  // Buscar time do Supabase
   useEffect(() => {
-    if (team) {
-      // Verificar se há dados salvos no localStorage
-      const savedTeamData = localStorage.getItem(`team_${team.id}`);
-      if (savedTeamData) {
-        const parsed = JSON.parse(savedTeamData);
-        setFormData({
-          name: parsed.name || team.name,
-          logo: parsed.logo || team.logo,
-          description: parsed.description || team.description,
-          president: parsed.president || '',
-          phone: parsed.phone || '',
-          category: parsed.category || '',
-          availableForMatch: parsed.availableForMatch !== undefined ? parsed.availableForMatch : true,
-          teamType: parsed.teamType || '',
-          hasVenue: parsed.hasVenue !== undefined ? parsed.hasVenue : false,
-        });
+    const fetchTeam = async () => {
+      if (!params.id) return;
+      
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', params.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao buscar time:', error);
+        setTeam(null);
       } else {
+        setTeam(data);
+        // Preencher o formulário com os dados do time
         setFormData({
-          name: team.name,
-          logo: team.logo,
-          description: team.description,
-          president: team.president || '',
-          phone: team.phone || '',
-          category: team.category || '',
-          availableForMatch: team.availableForMatch !== undefined ? team.availableForMatch : true,
-          teamType: team.teamType || '',
-          hasVenue: team.hasVenue !== undefined ? team.hasVenue : false,
+          name: data.name,
+          logo: data.logo || '',
+          description: data.description || '',
+          president: data.president || '',
+          phone: data.phone || '',
+          category: data.category || '',
+          availableForMatch: data.available_for_match !== undefined ? data.available_for_match : true,
+          teamType: data.team_type || '',
+          hasVenue: data.has_venue !== undefined ? data.has_venue : false,
         });
       }
-    }
-  }, [team]);
+      setLoading(false);
+    };
 
-  const handleSubmit = (e: React.FormEvent) => {
+    fetchTeam();
+  }, [params.id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (team) {
-      // Salvar no localStorage
-      localStorage.setItem(`team_${team.id}`, JSON.stringify(formData));
+      // Salvar no Supabase
+      const { error } = await supabase
+        .from('teams')
+        .update({
+          name: formData.name,
+          logo: formData.logo,
+          description: formData.description,
+          president: formData.president,
+          phone: formData.phone,
+          category: formData.category,
+          available_for_match: formData.availableForMatch,
+          team_type: formData.teamType,
+          has_venue: formData.hasVenue,
+        })
+        .eq('id', team.id);
+
+      if (error) {
+        console.error('Erro ao salvar time:', error);
+        alert('Erro ao salvar alterações. Tente novamente.');
+        return;
+      }
+
       setSaved(true);
       
       // Redirecionar após salvar
@@ -91,6 +114,17 @@ export default function EditarTimePage() {
       }, 1000);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D]">
+        <Navigation />
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="w-8 h-8 text-[#FF6B00] animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   if (!team) {
     return (
@@ -142,7 +176,7 @@ export default function EditarTimePage() {
               <div className="flex items-center gap-6">
                 {/* Preview do Logo */}
                 <div className="relative">
-                  {formData.logo && formData.logo.startsWith('data:') ? (
+                  {formData.logo && (formData.logo.startsWith('data:') || formData.logo.startsWith('http')) ? (
                     <div className="w-32 h-32 rounded-2xl overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
                       <img 
                         src={formData.logo} 
@@ -360,7 +394,7 @@ export default function EditarTimePage() {
               <h3 className="text-white font-bold mb-4">Preview</h3>
               <div className="bg-white/5 rounded-xl p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  {formData.logo && formData.logo.startsWith('data:') ? (
+                  {formData.logo && (formData.logo.startsWith('data:') || formData.logo.startsWith('http')) ? (
                     <div className="w-16 h-16 rounded-xl overflow-hidden">
                       <img src={formData.logo} alt="Logo" className="w-full h-full object-cover" />
                     </div>
@@ -409,19 +443,19 @@ export default function EditarTimePage() {
                 
                 <div className="grid grid-cols-4 gap-4 pt-4 border-t border-white/10">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.players.length}</div>
+                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">-</div>
                     <div className="text-white/60 text-xs">Jogadores</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.stats.wins + team.stats.draws + team.stats.losses}</div>
+                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{(team.wins || 0) + (team.draws || 0) + (team.losses || 0)}</div>
                     <div className="text-white/60 text-xs">Partidas</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.stats.wins}</div>
+                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.wins || 0}</div>
                     <div className="text-white/60 text-xs">Vitórias</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.stats.goalsFor}</div>
+                    <div className="text-2xl font-bold text-[#FF6B00] mb-1">{team.goals_for || 0}</div>
                     <div className="text-white/60 text-xs">Gols</div>
                   </div>
                 </div>

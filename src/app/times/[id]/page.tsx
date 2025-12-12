@@ -2,7 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus, Loader2 } from 'lucide-react';
-import { Player } from '@/lib/mock-data';
+import { Player } from '@/lib/supabase';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -193,14 +193,25 @@ export default function TeamDetailPage() {
     }
   }, [team]);
 
-  // Carregar jogadores customizados do localStorage
+  // Carregar jogadores do Supabase
   useEffect(() => {
-    if (team) {
-      const storedPlayers = localStorage.getItem(`players_${team.id}`);
-      if (storedPlayers) {
-        setCustomPlayers(JSON.parse(storedPlayers));
+    const fetchPlayers = async () => {
+      if (!team) return;
+      
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('team_id', team.id)
+        .order('number', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao buscar jogadores:', error);
+      } else {
+        setCustomPlayers(data || []);
       }
-    }
+    };
+
+    fetchPlayers();
   }, [team]);
 
   // Carregar dados editados do time do localStorage
@@ -246,33 +257,33 @@ export default function TeamDetailPage() {
     }
   };
 
-  // Salvar jogadores no localStorage
-  const savePlayers = (updatedPlayers: Player[]) => {
-    if (team) {
-      localStorage.setItem(`players_${team.id}`, JSON.stringify(updatedPlayers));
-      setCustomPlayers(updatedPlayers);
-    }
-  };
-
-  // Adicionar novo jogador
-  const handleAddPlayer = () => {
+  // Adicionar novo jogador no Supabase
+  const handleAddPlayer = async () => {
     if (!team || !newPlayer.name || newPlayer.number <= 0) return;
 
-    const player: Player = {
-      id: Date.now().toString(),
-      name: newPlayer.name,
-      position: newPlayer.position,
-      number: newPlayer.number,
-      age: newPlayer.age || undefined,
-      available: newPlayer.available,
-      stats: {
+    const { data, error } = await supabase
+      .from('players')
+      .insert({
+        team_id: team.id,
+        name: newPlayer.name,
+        position: newPlayer.position,
+        number: newPlayer.number,
+        age: newPlayer.age || null,
+        available: newPlayer.available,
         goals: 0,
         assists: 0,
         matches: 0
-      }
-    };
+      })
+      .select()
+      .single();
 
-    savePlayers([...customPlayers, player]);
+    if (error) {
+      console.error('Erro ao adicionar jogador:', error);
+      alert('Erro ao adicionar jogador. Tente novamente.');
+      return;
+    }
+
+    setCustomPlayers([...customPlayers, data]);
     setShowAddPlayerModal(false);
     setNewPlayer({
       name: '',
@@ -283,9 +294,20 @@ export default function TeamDetailPage() {
     });
   };
 
-  // Remover jogador
-  const handleRemovePlayer = (playerId: string) => {
-    savePlayers(customPlayers.filter(p => p.id !== playerId));
+  // Remover jogador do Supabase
+  const handleRemovePlayer = async (playerId: string) => {
+    const { error } = await supabase
+      .from('players')
+      .delete()
+      .eq('id', playerId);
+
+    if (error) {
+      console.error('Erro ao remover jogador:', error);
+      alert('Erro ao remover jogador. Tente novamente.');
+      return;
+    }
+
+    setCustomPlayers(customPlayers.filter(p => p.id !== playerId));
     setShowPlayerDetailModal(false);
     setSelectedPlayer(null);
   };
@@ -298,25 +320,48 @@ export default function TeamDetailPage() {
     setShowPlayerDetailModal(true);
   };
 
-  // Salvar edição do jogador
-  const handleSavePlayerEdit = () => {
+  // Salvar edição do jogador no Supabase
+  const handleSavePlayerEdit = async () => {
     if (!selectedPlayer || !editPlayerData.name) return;
     
-    const isCustomPlayer = customPlayers.some(p => p.id === selectedPlayer.id);
-    
-    if (isCustomPlayer) {
-      const updatedPlayers = customPlayers.map(p => 
-        p.id === selectedPlayer.id ? { ...p, ...editPlayerData } as Player : p
-      );
-      savePlayers(updatedPlayers);
+    const { data, error } = await supabase
+      .from('players')
+      .update({
+        name: editPlayerData.name,
+        position: editPlayerData.position,
+        number: editPlayerData.number,
+        age: editPlayerData.age,
+        available: editPlayerData.available,
+        phone: editPlayerData.phone,
+        foto: editPlayerData.foto,
+        preferred_foot: editPlayerData.preferred_foot,
+        secondary_position: editPlayerData.secondary_position,
+        is_captain: editPlayerData.is_captain,
+        is_free_kick_taker: editPlayerData.is_free_kick_taker,
+        is_guest: editPlayerData.is_guest,
+        goals: editPlayerData.goals,
+        assists: editPlayerData.assists,
+        matches: editPlayerData.matches
+      })
+      .eq('id', selectedPlayer.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao atualizar jogador:', error);
+      alert('Erro ao atualizar jogador. Tente novamente.');
+      return;
     }
-    
-    setSelectedPlayer({ ...selectedPlayer, ...editPlayerData } as Player);
+
+    const updatedPlayers = customPlayers.map(p => 
+      p.id === selectedPlayer.id ? data : p
+    );
+    setCustomPlayers(updatedPlayers);
+    setSelectedPlayer(data);
     setIsEditingPlayer(false);
   };
 
-  // Usar apenas jogadores customizados (localStorage) por enquanto
-  // TODO: Integrar com tabela team_players do Supabase
+  // Jogadores do Supabase
   const allPlayers = customPlayers;
 
   // Filtrar jogadores
@@ -1015,7 +1060,7 @@ export default function TeamDetailPage() {
                 <div className="space-y-3">
                   {customPlayers.length > 0 ? (
                     [...customPlayers]
-                      .sort((a: Player, b: Player) => (b.stats?.goals || 0) - (a.stats?.goals || 0))
+                      .sort((a: Player, b: Player) => (b.goals || 0) - (a.goals || 0))
                       .slice(0, 3)
                       .map((player: Player, index: number) => (
                         <div key={player.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-lg">
@@ -1028,7 +1073,7 @@ export default function TeamDetailPage() {
                             <div className="text-white font-medium text-sm">{player.name}</div>
                             <div className="text-white/60 text-xs">{player.position}</div>
                           </div>
-                          <div className="text-[#FF6B00] font-bold">{player.stats?.goals || 0}</div>
+                          <div className="text-[#FF6B00] font-bold">{player.goals || 0}</div>
                         </div>
                       ))
                   ) : (
@@ -1162,15 +1207,15 @@ export default function TeamDetailPage() {
                         <div className="grid grid-cols-3 gap-2 text-center text-sm">
                           <div>
                             <div className="text-white/60">Gols</div>
-                            <div className="text-[#FF6B00] font-bold">{player.stats.goals}</div>
+                            <div className="text-[#FF6B00] font-bold">{player.goals}</div>
                           </div>
                           <div>
                             <div className="text-white/60">Assist.</div>
-                            <div className="text-white font-bold">{player.stats.assists}</div>
+                            <div className="text-white font-bold">{player.assists}</div>
                           </div>
                           <div>
                             <div className="text-white/60">Jogos</div>
-                            <div className="text-white font-bold">{player.stats.matches}</div>
+                            <div className="text-white font-bold">{player.matches}</div>
                           </div>
                         </div>
                       </div>
@@ -2143,17 +2188,24 @@ export default function TeamDetailPage() {
                       <input 
                         type="file" 
                         accept="image/*" 
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
                             const reader = new FileReader();
-                            reader.onloadend = () => {
+                            reader.onloadend = async () => {
                               const base64 = reader.result as string;
                               setEditPlayerData({ ...editPlayerData, foto: base64 });
+                              
+                              // Atualizar no Supabase
+                              await supabase
+                                .from('players')
+                                .update({ foto: base64 })
+                                .eq('id', selectedPlayer.id);
+                              
                               const updatedPlayers = customPlayers.map(p => 
                                 p.id === selectedPlayer.id ? { ...p, foto: base64 } as Player : p
                               );
-                              savePlayers(updatedPlayers);
+                              setCustomPlayers(updatedPlayers);
                               setSelectedPlayer({ ...selectedPlayer, foto: base64 });
                             };
                             reader.readAsDataURL(file);
@@ -2234,8 +2286,8 @@ export default function TeamDetailPage() {
                   <div>
                     <label className="block text-white/80 mb-2 font-medium">Posição Secundária</label>
                     <select
-                      value={editPlayerData.secondaryPosition || ''}
-                      onChange={(e) => setEditPlayerData({ ...editPlayerData, secondaryPosition: e.target.value })}
+                      value={editPlayerData.secondary_position || ''}
+                      onChange={(e) => setEditPlayerData({ ...editPlayerData, secondary_position: e.target.value })}
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
                     >
                       <option value="">Nenhuma</option>
@@ -2261,8 +2313,8 @@ export default function TeamDetailPage() {
                   <div>
                     <label className="block text-white/80 mb-2 font-medium">Pé Predominante</label>
                     <select
-                      value={editPlayerData.preferredFoot || ''}
-                      onChange={(e) => setEditPlayerData({ ...editPlayerData, preferredFoot: e.target.value as 'Direito' | 'Esquerdo' | 'Ambos' })}
+                      value={editPlayerData.preferred_foot || ''}
+                      onChange={(e) => setEditPlayerData({ ...editPlayerData, preferred_foot: e.target.value as 'Direito' | 'Esquerdo' | 'Ambos' })}
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
                     >
                       <option value="">Não informado</option>
@@ -2289,8 +2341,8 @@ export default function TeamDetailPage() {
                     <input
                       type="checkbox"
                       id="editCaptain"
-                      checked={editPlayerData.isCaptain || false}
-                      onChange={(e) => setEditPlayerData({ ...editPlayerData, isCaptain: e.target.checked })}
+                      checked={editPlayerData.is_captain || false}
+                      onChange={(e) => setEditPlayerData({ ...editPlayerData, is_captain: e.target.checked })}
                       className="w-5 h-5 rounded border-white/20 bg-white/5 text-[#FF6B00] focus:ring-[#FF6B00]"
                     />
                     <label htmlFor="editCaptain" className="text-white cursor-pointer flex items-center gap-2">
@@ -2302,8 +2354,8 @@ export default function TeamDetailPage() {
                     <input
                       type="checkbox"
                       id="editFreeKick"
-                      checked={editPlayerData.isFreeKickTaker || false}
-                      onChange={(e) => setEditPlayerData({ ...editPlayerData, isFreeKickTaker: e.target.checked })}
+                      checked={editPlayerData.is_free_kick_taker || false}
+                      onChange={(e) => setEditPlayerData({ ...editPlayerData, is_free_kick_taker: e.target.checked })}
                       className="w-5 h-5 rounded border-white/20 bg-white/5 text-[#FF6B00] focus:ring-[#FF6B00]"
                     />
                     <label htmlFor="editFreeKick" className="text-white cursor-pointer flex items-center gap-2">
@@ -2318,8 +2370,8 @@ export default function TeamDetailPage() {
                     <input
                       type="checkbox"
                       id="editGuest"
-                      checked={editPlayerData.isGuest || false}
-                      onChange={(e) => setEditPlayerData({ ...editPlayerData, isGuest: e.target.checked })}
+                      checked={editPlayerData.is_guest || false}
+                      onChange={(e) => setEditPlayerData({ ...editPlayerData, is_guest: e.target.checked })}
                       className="w-5 h-5 rounded border-white/20 bg-white/5 text-[#FF6B00] focus:ring-[#FF6B00]"
                     />
                     <label htmlFor="editGuest" className="text-white cursor-pointer flex items-center gap-2">
@@ -2347,15 +2399,15 @@ export default function TeamDetailPage() {
                 {/* Estatísticas */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-white/5 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold text-[#FF6B00]">{selectedPlayer.stats.goals}</div>
+                    <div className="text-3xl font-bold text-[#FF6B00]">{selectedPlayer.goals}</div>
                     <div className="text-white/60 text-sm">Gols</div>
                   </div>
                   <div className="bg-white/5 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold text-white">{selectedPlayer.stats.assists}</div>
+                    <div className="text-3xl font-bold text-white">{selectedPlayer.assists}</div>
                     <div className="text-white/60 text-sm">Assistências</div>
                   </div>
                   <div className="bg-white/5 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold text-white">{selectedPlayer.stats.matches}</div>
+                    <div className="text-3xl font-bold text-white">{selectedPlayer.matches}</div>
                     <div className="text-white/60 text-sm">Jogos</div>
                   </div>
                 </div>
@@ -2370,11 +2422,11 @@ export default function TeamDetailPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-white/60">Pé Predominante:</span>
-                      <span className="text-white">{selectedPlayer.preferredFoot || 'Não informado'}</span>
+                      <span className="text-white">{selectedPlayer.preferred_foot || 'Não informado'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-white/60">Posição Secundária:</span>
-                      <span className="text-white">{selectedPlayer.secondaryPosition || 'Nenhuma'}</span>
+                      <span className="text-white">{selectedPlayer.secondary_position || 'Nenhuma'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-white/60">Telefone:</span>
@@ -2385,25 +2437,25 @@ export default function TeamDetailPage() {
 
                 {/* Funções do Jogador */}
                 <div className="flex flex-wrap gap-3">
-                  {selectedPlayer.isCaptain && (
+                  {selectedPlayer.is_captain && (
                     <div className="flex items-center gap-2 bg-yellow-500/20 text-yellow-500 px-4 py-2 rounded-full text-sm font-medium">
                       <Crown className="w-4 h-4" />
                       Capitão
                     </div>
                   )}
-                  {selectedPlayer.isFreeKickTaker && (
+                  {selectedPlayer.is_free_kick_taker && (
                     <div className="flex items-center gap-2 bg-[#FF6B00]/20 text-[#FF6B00] px-4 py-2 rounded-full text-sm font-medium">
                       <Target className="w-4 h-4" />
                       Batedor de Falta
                     </div>
                   )}
-                  {selectedPlayer.isGuest && (
+                  {selectedPlayer.is_guest && (
                     <div className="flex items-center gap-2 bg-blue-500/20 text-blue-400 px-4 py-2 rounded-full text-sm font-medium">
                       <UserPlus className="w-4 h-4" />
                       Convidado
                     </div>
                   )}
-                  {!selectedPlayer.isCaptain && !selectedPlayer.isFreeKickTaker && !selectedPlayer.isGuest && (
+                  {!selectedPlayer.is_captain && !selectedPlayer.is_free_kick_taker && !selectedPlayer.is_guest && (
                     <span className="text-white/40 text-sm">Nenhuma função especial atribuída</span>
                   )}
                 </div>

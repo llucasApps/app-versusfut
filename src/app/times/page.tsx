@@ -45,10 +45,14 @@ export default function TimesPage() {
       // Para cada time, buscar contagem de jogadores
       const teamsWithCount: TeamWithPlayerCount[] = await Promise.all(
         (teamsData || []).map(async (team) => {
-          const { count } = await supabase
-            .from('team_players')
+          const { count, error } = await supabase
+            .from('players')
             .select('*', { count: 'exact', head: true })
             .eq('team_id', team.id);
+
+          if (error) {
+            console.error('Erro ao buscar jogadores do time:', error);
+          }
 
           return {
             ...team,
