@@ -2,7 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus, Loader2 } from 'lucide-react';
-import { Player, PhotoFolder, TeamPhoto } from '@/lib/supabase';
+import { Player, PhotoFolder, TeamPhoto, VideoFolder, VideoTutorial } from '@/lib/supabase';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -12,23 +12,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Team } from '@/lib/supabase';
 
 type Tab = 'resumo' | 'elenco' | 'taticas' | 'fotos' | 'videos';
-
-interface Pasta {
-  id: string;
-  timeId: string;
-  nome: string;
-  criadaEm: string;
-}
-
-interface VideoTutorial {
-  id: string;
-  timeId: string;
-  titulo?: string;
-  descricao?: string;
-  urlEmbed: string;
-  categoria?: string;
-  pastaId?: string;
-}
 
 const categorias = ['Finalização', 'Tática', 'Preparação Física', 'Passe', 'Defesa', 'Drible'];
 
@@ -71,10 +54,10 @@ export default function TeamDetailPage() {
   const [novaPastaFotos, setNovaPastaFotos] = useState('');
   
   const [videos, setVideos] = useState<VideoTutorial[]>([]);
-  const [pastasVideos, setPastasVideos] = useState<Pasta[]>([]);
+  const [pastasVideos, setPastasVideos] = useState<VideoFolder[]>([]);
   const [pastaVideosAtual, setPastaVideosAtual] = useState<string | null>(null);
   const [showAddPastaVideosModal, setShowAddPastaVideosModal] = useState(false);
-  const [editingPastaVideos, setEditingPastaVideos] = useState<Pasta | null>(null);
+  const [editingPastaVideos, setEditingPastaVideos] = useState<VideoFolder | null>(null);
   const [novaPastaVideos, setNovaPastaVideos] = useState('');
   
   const [showAddFotoModal, setShowAddFotoModal] = useState(false);
@@ -96,9 +79,10 @@ export default function TeamDetailPage() {
   const [videoFormData, setVideoFormData] = useState({
     titulo: '',
     descricao: '',
-    urlEmbed: '',
+    url_embed: '',
     categoria: ''
   });
+  const [savingVideo, setSavingVideo] = useState(false);
   const [capitaoFoto, setCapitaoFoto] = useState<string | null>(null);
   const [capitaoNome, setCapitaoNome] = useState<string>('');
   
@@ -176,19 +160,35 @@ export default function TeamDetailPage() {
     fetchPhotosAndFolders();
   }, [team]);
 
-  // Carregar vídeos e pastas de vídeos do localStorage
+  // Carregar vídeos e pastas de vídeos do Supabase
   useEffect(() => {
-    if (team) {
-      const storedVideos = localStorage.getItem(`videos_${team.id}`);
-      if (storedVideos) {
-        setVideos(JSON.parse(storedVideos));
-      }
+    const fetchVideosAndFolders = async () => {
+      if (!team) return;
+
       // Carregar pastas de vídeos
-      const storedPastasVideos = localStorage.getItem(`pastas_videos_${team.id}`);
-      if (storedPastasVideos) {
-        setPastasVideos(JSON.parse(storedPastasVideos));
+      const { data: foldersData } = await supabase
+        .from('video_folders')
+        .select('*')
+        .eq('team_id', team.id)
+        .order('created_at', { ascending: true });
+      
+      if (foldersData) {
+        setPastasVideos(foldersData);
       }
-    }
+
+      // Carregar vídeos
+      const { data: videosData } = await supabase
+        .from('video_tutorials')
+        .select('*')
+        .eq('team_id', team.id)
+        .order('created_at', { ascending: false });
+      
+      if (videosData) {
+        setVideos(videosData);
+      }
+    };
+
+    fetchVideosAndFolders();
   }, [team]);
 
   // Carregar foto do capitão do localStorage
@@ -290,11 +290,28 @@ export default function TeamDetailPage() {
     }
   };
 
-  // Salvar vídeos no localStorage
-  const saveVideos = (updatedVideos: VideoTutorial[]) => {
-    if (team) {
-      localStorage.setItem(`videos_${team.id}`, JSON.stringify(updatedVideos));
-      setVideos(updatedVideos);
+  // Funções auxiliares para recarregar vídeos e pastas do Supabase
+  const reloadVideos = async () => {
+    if (!team) return;
+    const { data } = await supabase
+      .from('video_tutorials')
+      .select('*')
+      .eq('team_id', team.id)
+      .order('created_at', { ascending: false });
+    if (data) {
+      setVideos(data);
+    }
+  };
+
+  const reloadPastasVideos = async () => {
+    if (!team) return;
+    const { data } = await supabase
+      .from('video_folders')
+      .select('*')
+      .eq('team_id', team.id)
+      .order('created_at', { ascending: true });
+    if (data) {
+      setPastasVideos(data);
     }
   };
 
@@ -578,48 +595,70 @@ export default function TeamDetailPage() {
   };
 
   // Funções para gerenciar pastas de vídeos
-  const savePastasVideos = (newPastas: Pasta[]) => {
-    setPastasVideos(newPastas);
-    localStorage.setItem(`pastas_videos_${params.id}`, JSON.stringify(newPastas));
-  };
-
-  const handleAddPastaVideos = () => {
+  const handleAddPastaVideos = async () => {
     if (!team || !novaPastaVideos.trim()) return;
 
     if (editingPastaVideos) {
-      const pastasAtualizadas = pastasVideos.map((p: Pasta) =>
-        p.id === editingPastaVideos.id ? { ...p, nome: novaPastaVideos.trim() } : p
-      );
-      savePastasVideos(pastasAtualizadas);
+      const { error } = await supabase
+        .from('video_folders')
+        .update({ nome: novaPastaVideos.trim() })
+        .eq('id', editingPastaVideos.id);
+
+      if (error) {
+        console.error('Erro ao editar pasta:', error);
+        alert('Erro ao editar pasta. Tente novamente.');
+        return;
+      }
     } else {
-      const pasta: Pasta = {
-        id: Date.now().toString(),
-        timeId: team.id,
-        nome: novaPastaVideos.trim(),
-        criadaEm: new Date().toISOString()
-      };
-      savePastasVideos([...pastasVideos, pasta]);
+      const { error } = await supabase
+        .from('video_folders')
+        .insert({
+          team_id: team.id,
+          nome: novaPastaVideos.trim()
+        });
+
+      if (error) {
+        console.error('Erro ao criar pasta:', error);
+        alert('Erro ao criar pasta. Tente novamente.');
+        return;
+      }
     }
 
+    await reloadPastasVideos();
     setShowAddPastaVideosModal(false);
     setEditingPastaVideos(null);
     setNovaPastaVideos('');
   };
 
-  const handleEditPastaVideos = (pasta: Pasta) => {
+  const handleEditPastaVideos = (pasta: VideoFolder) => {
     setEditingPastaVideos(pasta);
     setNovaPastaVideos(pasta.nome);
     setShowAddPastaVideosModal(true);
   };
 
-  const handleRemovePastaVideos = (pastaId: string) => {
+  const handleRemovePastaVideos = async (folderId: string) => {
     if (confirm('Excluir esta pasta? Os vídeos dentro dela serão movidos para a raiz.')) {
-      const videosAtualizados = videos.map(v => 
-        v.pastaId === pastaId ? { ...v, pastaId: undefined } : v
-      );
-      saveVideos(videosAtualizados);
-      savePastasVideos(pastasVideos.filter((p: Pasta) => p.id !== pastaId));
-      if (pastaVideosAtual === pastaId) setPastaVideosAtual(null);
+      // Mover vídeos para a raiz
+      await supabase
+        .from('video_tutorials')
+        .update({ folder_id: null })
+        .eq('folder_id', folderId);
+
+      // Excluir pasta
+      const { error } = await supabase
+        .from('video_folders')
+        .delete()
+        .eq('id', folderId);
+
+      if (error) {
+        console.error('Erro ao excluir pasta:', error);
+        alert('Erro ao excluir pasta. Tente novamente.');
+        return;
+      }
+
+      await reloadPastasVideos();
+      await reloadVideos();
+      if (pastaVideosAtual === folderId) setPastaVideosAtual(null);
     }
   };
 
@@ -661,42 +700,68 @@ export default function TeamDetailPage() {
     setShowFotoModal(true);
   };
 
-  const handleAddVideo = () => {
-    if (!team || !videoFormData.urlEmbed) return;
+  const handleAddVideo = async () => {
+    if (!team || !videoFormData.url_embed) return;
 
-    const newVideo: VideoTutorial = {
-      id: Date.now().toString(),
-      timeId: team.id,
-      titulo: videoFormData.titulo || undefined,
-      descricao: videoFormData.descricao || undefined,
-      urlEmbed: videoFormData.urlEmbed,
-      categoria: videoFormData.categoria || undefined,
-      pastaId: pastaVideosAtual || undefined
-    };
+    setSavingVideo(true);
+    const { error } = await supabase
+      .from('video_tutorials')
+      .insert({
+        team_id: team.id,
+        titulo: videoFormData.titulo || 'Sem título',
+        descricao: videoFormData.descricao || null,
+        url_embed: videoFormData.url_embed,
+        categoria: videoFormData.categoria || 'Tática',
+        folder_id: pastaVideosAtual || null
+      });
 
-    saveVideos([...videos, newVideo]);
-    resetVideoForm();
+    if (error) {
+      console.error('Erro ao adicionar vídeo:', error);
+      alert('Erro ao adicionar vídeo: ' + error.message);
+    } else {
+      await reloadVideos();
+      resetVideoForm();
+    }
+    setSavingVideo(false);
   };
 
-  const handleEditVideo = () => {
-    if (!editingVideo || !videoFormData.urlEmbed) return;
+  const handleEditVideo = async () => {
+    if (!editingVideo || !videoFormData.url_embed) return;
 
-    const updatedVideos = videos.map(v => 
-      v.id === editingVideo.id ? { 
-        ...editingVideo, 
-        titulo: videoFormData.titulo || undefined,
-        descricao: videoFormData.descricao || undefined,
-        urlEmbed: videoFormData.urlEmbed,
-        categoria: videoFormData.categoria || undefined
-      } : v
-    );
+    setSavingVideo(true);
+    const { error } = await supabase
+      .from('video_tutorials')
+      .update({
+        titulo: videoFormData.titulo || 'Sem título',
+        descricao: videoFormData.descricao || null,
+        url_embed: videoFormData.url_embed,
+        categoria: videoFormData.categoria || 'Tática'
+      })
+      .eq('id', editingVideo.id);
 
-    saveVideos(updatedVideos);
-    resetVideoForm();
+    if (error) {
+      console.error('Erro ao editar vídeo:', error);
+      alert('Erro ao editar vídeo: ' + error.message);
+    } else {
+      await reloadVideos();
+      resetVideoForm();
+    }
+    setSavingVideo(false);
   };
 
-  const handleRemoveVideo = (id: string) => {
-    saveVideos(videos.filter(v => v.id !== id));
+  const handleRemoveVideo = async (id: string) => {
+    const { error } = await supabase
+      .from('video_tutorials')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao remover vídeo:', error);
+      alert('Erro ao remover vídeo. Tente novamente.');
+      return;
+    }
+
+    await reloadVideos();
     setShowVideoModal(false);
   };
 
@@ -705,7 +770,7 @@ export default function TeamDetailPage() {
     setVideoFormData({
       titulo: video.titulo || '',
       descricao: video.descricao || '',
-      urlEmbed: video.urlEmbed,
+      url_embed: video.url_embed,
       categoria: video.categoria || ''
     });
     setShowAddVideoModal(true);
@@ -715,7 +780,7 @@ export default function TeamDetailPage() {
     setVideoFormData({
       titulo: '',
       descricao: '',
-      urlEmbed: '',
+      url_embed: '',
       categoria: ''
     });
     setEditingVideo(null);
@@ -724,7 +789,7 @@ export default function TeamDetailPage() {
 
   // Vídeos filtrados pela pasta atual
   const videosFiltrados = videos.filter(v => 
-    pastaVideosAtual ? v.pastaId === pastaVideosAtual : !v.pastaId
+    pastaVideosAtual ? v.folder_id === pastaVideosAtual : !v.folder_id
   );
 
   const openVideoModal = (video: VideoTutorial) => {
@@ -1525,7 +1590,7 @@ export default function TeamDetailPage() {
                     </button>
                     <span className="text-white/60">|</span>
                     <span className="text-white/80 font-medium">
-                      📁 {pastasVideos.find((p: Pasta) => p.id === pastaVideosAtual)?.nome}
+                      📁 {pastasVideos.find((p: VideoFolder) => p.id === pastaVideosAtual)?.nome}
                     </span>
                   </div>
                 )}
@@ -1577,8 +1642,8 @@ export default function TeamDetailPage() {
               <div className="mb-6">
                 <h3 className="text-white/60 text-sm font-medium mb-3">Pastas</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {pastasVideos.map((pasta: Pasta) => {
-                    const videosNaPasta = videos.filter(v => v.pastaId === pasta.id).length;
+                  {pastasVideos.map((pasta: VideoFolder) => {
+                    const videosNaPasta = videos.filter(v => v.folder_id === pasta.id).length;
                     return (
                       <div
                         key={pasta.id}
@@ -2033,7 +2098,7 @@ export default function TeamDetailPage() {
                 {editingVideo ? 'Editar Vídeo' : 'Adicionar Vídeo'}
                 {pastaVideosAtual && !editingVideo && (
                   <span className="text-base font-normal text-white/60 ml-2">
-                    em 📁 {pastasVideos.find((p: Pasta) => p.id === pastaVideosAtual)?.nome}
+                    em 📁 {pastasVideos.find((p: VideoFolder) => p.id === pastaVideosAtual)?.nome}
                   </span>
                 )}
               </h3>
@@ -2050,8 +2115,8 @@ export default function TeamDetailPage() {
                 <label className="block text-white/80 mb-2 font-medium">URL do Vídeo (YouTube) *</label>
                 <input
                   type="url"
-                  value={videoFormData.urlEmbed}
-                  onChange={(e) => setVideoFormData({ ...videoFormData, urlEmbed: e.target.value })}
+                  value={videoFormData.url_embed}
+                  onChange={(e) => setVideoFormData({ ...videoFormData, url_embed: e.target.value })}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
                   placeholder="https://www.youtube.com/embed/..."
                 />
@@ -2106,7 +2171,7 @@ export default function TeamDetailPage() {
               </button>
               <button
                 onClick={editingVideo ? handleEditVideo : handleAddVideo}
-                disabled={!videoFormData.urlEmbed}
+                disabled={!videoFormData.url_embed}
                 className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingVideo ? 'Salvar Alterações' : 'Adicionar Vídeo'}
@@ -2136,7 +2201,7 @@ export default function TeamDetailPage() {
 
             <div className="aspect-video bg-black rounded-xl overflow-hidden mb-6">
               <iframe
-                src={selectedVideo.urlEmbed}
+                src={selectedVideo.url_embed}
                 className="w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

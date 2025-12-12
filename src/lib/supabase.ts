@@ -127,3 +127,22 @@ export interface TeamPhoto {
   photo_date?: string;
   created_at: string;
 }
+
+export interface VideoFolder {
+  id: string;
+  team_id: string;
+  nome: string;
+  created_at: string;
+}
+
+export interface VideoTutorial {
+  id: string;
+  team_id: string;
+  folder_id?: string | null;
+  titulo: string;
+  descricao?: string | null;
+  url_embed: string;
+  categoria: string;
+  duracao?: string | null;
+  created_at?: string;
+}
