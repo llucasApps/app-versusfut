@@ -146,3 +146,62 @@ export interface VideoTutorial {
   duracao?: string | null;
   created_at?: string;
 }
+
+// Interfaces para Agenda
+export interface Match {
+  id: string;
+  team_id: string;
+  home_team_id?: string | null;
+  home_team_name: string;
+  away_team_id?: string | null;
+  away_team_name: string;
+  match_date: string;
+  match_time: string;
+  location: string;
+  status: 'scheduled' | 'confirmed' | 'pending' | 'completed';
+  score_home?: number | null;
+  score_away?: number | null;
+  highlight_player_name?: string | null;
+  highlight_player_photo?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MatchMessage {
+  id: string;
+  match_id: string;
+  sender_team_id?: string | null;
+  sender_name: string;
+  message: string;
+  created_at?: string;
+}
+
+export interface TeamAvailableDate {
+  id: string;
+  team_id: string;
+  available_date: string;
+  created_at?: string;
+}
+
+export interface TeamAgendaSettings {
+  id: string;
+  team_id: string;
+  observation?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MatchInvite {
+  id: string;
+  match_id?: string | null;
+  from_team_id: string;
+  from_team_name: string;
+  to_team_id: string;
+  to_team_name: string;
+  proposed_date: string;
+  proposed_time: string;
+  proposed_location?: string | null;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at?: string;
+  updated_at?: string;
+}

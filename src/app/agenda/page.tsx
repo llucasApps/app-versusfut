@@ -1,126 +1,273 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { matches } from '@/lib/mock-data';
-import { Calendar, Clock, MapPin, Filter, CheckCircle, XCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare, X, Phone, User, Star, Upload, Trophy } from 'lucide-react';
+import { supabase, Match, Team, TeamAvailableDate, TeamAgendaSettings } from '@/lib/supabase';
+import { Calendar, Clock, MapPin, Filter, CheckCircle, XCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare, X, Phone, User, Star, Upload, Trophy, Plus, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AgendaPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'matches' | 'settings'>('matches');
   const [filter, setFilter] = useState<'confirmed' | 'completed'>('confirmed');
-  const [filterMonth, setFilterMonth] = useState<string>(''); // formato: '2024-02'
+  const [filterMonth, setFilterMonth] = useState<string>('');
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  // Times do usuário
+  const [userTeams, setUserTeams] = useState<Team[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+  
+  // Partidas do Supabase
+  const [matches, setMatches] = useState<Match[]>([]);
   
   // Estados para configurações de agenda
   const [configMonth, setConfigMonth] = useState(new Date());
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [observation, setObservation] = useState('');
   const [savedConfig, setSavedConfig] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
   
   // Estado para modal de detalhes da partida
-  const [selectedMatch, setSelectedMatch] = useState<typeof matches[0] | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   
   // Estados para edição de jogo finalizado
   const [editingScore, setEditingScore] = useState(false);
   const [scoreHome, setScoreHome] = useState('');
   const [scoreAway, setScoreAway] = useState('');
   const [highlightPlayer, setHighlightPlayer] = useState({ name: '', photo: '' });
-  const [matchHighlights, setMatchHighlights] = useState<Record<string, { score: { home: number; away: number }; highlight?: { name: string; photo: string } }>>({}); 
+  
+  // Modal de adicionar partida
+  const [showAddMatchModal, setShowAddMatchModal] = useState(false);
+  const [savingMatch, setSavingMatch] = useState(false);
+  const [matchFormData, setMatchFormData] = useState({
+    home_team_name: '',
+    away_team_name: '',
+    match_date: '',
+    match_time: '',
+    location: '',
+    status: 'scheduled' as Match['status']
+  }); 
 
+  // Carregar times do usuário
   useEffect(() => {
+    const fetchUserTeams = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('name');
+
+      if (!error && data) {
+        setUserTeams(data);
+        if (data.length > 0 && !selectedTeamId) {
+          setSelectedTeamId(data[0].id);
+        }
+      }
+      setLoading(false);
+    };
+
+    fetchUserTeams();
     setMounted(true);
-    // Carregar configurações salvas do localStorage
-    const savedDates = localStorage.getItem('teamAvailableDates');
-    const savedObs = localStorage.getItem('teamAgendaObservation');
-    const savedHighlights = localStorage.getItem('matchHighlights');
-    if (savedDates) setAvailableDates(JSON.parse(savedDates));
-    if (savedObs) setObservation(savedObs);
-    if (savedHighlights) setMatchHighlights(JSON.parse(savedHighlights));
-  }, []);
+  }, [user]);
+
+  // Carregar partidas e configurações quando o time é selecionado
+  useEffect(() => {
+    const fetchMatchesAndSettings = async () => {
+      if (!selectedTeamId) return;
+
+      // Carregar partidas
+      const { data: matchesData } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('team_id', selectedTeamId)
+        .order('match_date', { ascending: false });
+
+      if (matchesData) {
+        setMatches(matchesData);
+      }
+
+      // Carregar datas disponíveis
+      const { data: datesData } = await supabase
+        .from('team_available_dates')
+        .select('*')
+        .eq('team_id', selectedTeamId);
+
+      if (datesData) {
+        setAvailableDates(datesData.map(d => d.available_date));
+      }
+
+      // Carregar configurações de agenda
+      const { data: settingsData } = await supabase
+        .from('team_agenda_settings')
+        .select('*')
+        .eq('team_id', selectedTeamId)
+        .single();
+
+      if (settingsData) {
+        setObservation(settingsData.observation || '');
+      } else {
+        setObservation('');
+      }
+    };
+
+    fetchMatchesAndSettings();
+  }, [selectedTeamId]);
+
+  // Recarregar partidas
+  const reloadMatches = async () => {
+    if (!selectedTeamId) return;
+    const { data } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('team_id', selectedTeamId)
+      .order('match_date', { ascending: false });
+    if (data) setMatches(data);
+  };
 
   // Função para abrir modal com dados carregados
-  const openMatchDetails = (match: typeof matches[0]) => {
+  const openMatchDetails = (match: Match) => {
     setSelectedMatch(match);
-    const saved = matchHighlights[match.id];
-    if (saved) {
-      setScoreHome(saved.score.home.toString());
-      setScoreAway(saved.score.away.toString());
-      setHighlightPlayer(saved.highlight || { name: '', photo: '' });
-    } else if (match.score) {
-      setScoreHome(match.score.home.toString());
-      setScoreAway(match.score.away.toString());
-      setHighlightPlayer({ name: '', photo: '' });
-    } else {
-      setScoreHome('');
-      setScoreAway('');
-      setHighlightPlayer({ name: '', photo: '' });
-    }
+    setScoreHome(match.score_home?.toString() || '');
+    setScoreAway(match.score_away?.toString() || '');
+    setHighlightPlayer({
+      name: match.highlight_player_name || '',
+      photo: match.highlight_player_photo || ''
+    });
     setEditingScore(false);
   };
 
   // Função para salvar placar e destaque
-  const saveMatchResult = () => {
+  const saveMatchResult = async () => {
     if (!selectedMatch) return;
-    
-    const newHighlights = {
-      ...matchHighlights,
-      [selectedMatch.id]: {
-        score: { home: parseInt(scoreHome) || 0, away: parseInt(scoreAway) || 0 },
-        highlight: highlightPlayer.name ? highlightPlayer : undefined
-      }
-    };
-    
-    setMatchHighlights(newHighlights);
-    localStorage.setItem('matchHighlights', JSON.stringify(newHighlights));
+
+    const { error } = await supabase
+      .from('matches')
+      .update({
+        score_home: parseInt(scoreHome) || 0,
+        score_away: parseInt(scoreAway) || 0,
+        highlight_player_name: highlightPlayer.name || null,
+        highlight_player_photo: highlightPlayer.photo || null,
+        status: 'completed'
+      })
+      .eq('id', selectedMatch.id);
+
+    if (error) {
+      console.error('Erro ao salvar resultado:', error);
+      alert('Erro ao salvar resultado. Tente novamente.');
+      return;
+    }
+
+    await reloadMatches();
     setEditingScore(false);
+    setSelectedMatch(null);
   };
 
   // Função para upload de foto do destaque
-  const handleHighlightPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleHighlightPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file || !selectedTeamId) return;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${selectedTeamId}/highlight_${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('team-photos')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      console.error('Erro ao fazer upload:', uploadError);
+      // Fallback para base64
       const reader = new FileReader();
       reader.onloadend = () => {
         setHighlightPlayer(prev => ({ ...prev, photo: reader.result as string }));
       };
       reader.readAsDataURL(file);
+      return;
     }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('team-photos')
+      .getPublicUrl(fileName);
+
+    setHighlightPlayer(prev => ({ ...prev, photo: publicUrl }));
   };
 
-  // Obter dados da partida (salvos ou originais)
-  const getMatchData = (match: typeof matches[0]) => {
-    const saved = matchHighlights[match.id];
-    return {
-      score: saved?.score || match.score,
-      highlight: saved?.highlight
-    };
+  // Adicionar nova partida
+  const handleAddMatch = async () => {
+    if (!selectedTeamId || !matchFormData.match_date || !matchFormData.match_time) return;
+
+    setSavingMatch(true);
+    const selectedTeam = userTeams.find(t => t.id === selectedTeamId);
+
+    const { error } = await supabase
+      .from('matches')
+      .insert({
+        team_id: selectedTeamId,
+        home_team_name: matchFormData.home_team_name || selectedTeam?.name || 'Meu Time',
+        away_team_name: matchFormData.away_team_name || 'Adversário',
+        match_date: matchFormData.match_date,
+        match_time: matchFormData.match_time,
+        location: matchFormData.location || 'A definir',
+        status: matchFormData.status
+      });
+
+    if (error) {
+      console.error('Erro ao adicionar partida:', error);
+      alert('Erro ao adicionar partida: ' + error.message);
+    } else {
+      await reloadMatches();
+      setShowAddMatchModal(false);
+      setMatchFormData({
+        home_team_name: '',
+        away_team_name: '',
+        match_date: '',
+        match_time: '',
+        location: '',
+        status: 'scheduled'
+      });
+    }
+    setSavingMatch(false);
   };
 
-  // Carregar convites aceitos do localStorage
-  const [acceptedMatchIds, setAcceptedMatchIds] = useState<string[]>([]);
-  
-  useEffect(() => {
-    const savedAccepted = localStorage.getItem('acceptedMatches');
-    if (savedAccepted) setAcceptedMatchIds(JSON.parse(savedAccepted));
-  }, []);
+  // Excluir partida
+  const handleDeleteMatch = async (matchId: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta partida?')) return;
 
-  // Partidas confirmadas: status 'confirmed' OU aceitas via Convites
+    const { error } = await supabase
+      .from('matches')
+      .delete()
+      .eq('id', matchId);
+
+    if (error) {
+      console.error('Erro ao excluir partida:', error);
+      alert('Erro ao excluir partida.');
+      return;
+    }
+
+    await reloadMatches();
+    setSelectedMatch(null);
+  };
+
+  // Partidas filtradas
   const confirmedMatches = matches.filter(m => 
-    m.status === 'confirmed' || acceptedMatchIds.includes(m.id)
+    m.status === 'confirmed' || m.status === 'scheduled' || m.status === 'pending'
   );
   const completedMatches = matches.filter(m => m.status === 'completed');
   
-  // Aplicar filtro de status
   const statusFilteredMatches = filter === 'confirmed' ? confirmedMatches : completedMatches;
   
-  // Aplicar filtro de mês (se selecionado)
   const filteredMatches = filterMonth 
-    ? statusFilteredMatches.filter(m => m.date.startsWith(filterMonth))
+    ? statusFilteredMatches.filter(m => m.match_date.startsWith(filterMonth))
     : statusFilteredMatches;
   
-  // Gerar lista de meses disponíveis para o filtro
   const availableMonths = [...new Set(
-    [...confirmedMatches, ...completedMatches].map(m => m.date.substring(0, 7))
+    matches.map(m => m.match_date.substring(0, 7))
   )].sort().reverse();
 
   const getStatusInfo = (status: string) => {
@@ -179,9 +326,54 @@ export default function AgendaPage() {
     return checkDate < today;
   };
 
-  const saveConfig = () => {
-    localStorage.setItem('teamAvailableDates', JSON.stringify(availableDates));
-    localStorage.setItem('teamAgendaObservation', observation);
+  const saveConfig = async () => {
+    if (!selectedTeamId) return;
+    
+    setSavingConfig(true);
+    
+    // Salvar datas disponíveis - primeiro remove todas e depois insere as novas
+    await supabase
+      .from('team_available_dates')
+      .delete()
+      .eq('team_id', selectedTeamId);
+
+    if (availableDates.length > 0) {
+      const datesToInsert = availableDates.map(date => ({
+        team_id: selectedTeamId,
+        available_date: date
+      }));
+
+      const { error: datesError } = await supabase
+        .from('team_available_dates')
+        .insert(datesToInsert);
+
+      if (datesError) {
+        console.error('Erro ao salvar datas:', datesError);
+        alert('Erro ao salvar datas disponíveis.');
+        setSavingConfig(false);
+        return;
+      }
+    }
+
+    // Salvar ou atualizar observação
+    const { data: existingSettings } = await supabase
+      .from('team_agenda_settings')
+      .select('id')
+      .eq('team_id', selectedTeamId)
+      .single();
+
+    if (existingSettings) {
+      await supabase
+        .from('team_agenda_settings')
+        .update({ observation, updated_at: new Date().toISOString() })
+        .eq('team_id', selectedTeamId);
+    } else {
+      await supabase
+        .from('team_agenda_settings')
+        .insert({ team_id: selectedTeamId, observation });
+    }
+
+    setSavingConfig(false);
     setSavedConfig(true);
     setTimeout(() => setSavedConfig(false), 3000);
   };
@@ -274,6 +466,14 @@ export default function AgendaPage() {
     );
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#FF5A00] animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0D0D0D]">
       <Navigation />
@@ -281,12 +481,41 @@ export default function AgendaPage() {
       <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-8 sm:mb-12">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Agenda
-          </h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Agenda
+            </h1>
+            
+            {/* Seletor de Time */}
+            {userTeams.length > 0 && (
+              <select
+                value={selectedTeamId}
+                onChange={(e) => setSelectedTeamId(e.target.value)}
+                className="bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-[#FF5A00]"
+              >
+                {userTeams.map(team => (
+                  <option key={team.id} value={team.id} className="bg-[#1A1A1A]">
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
           <p className="text-white/60 text-base sm:text-lg">Acompanhe todos os seus jogos agendados</p>
         </div>
 
+        {/* Verificar se tem times */}
+        {userTeams.length === 0 ? (
+          <div className="text-center py-20">
+            <Calendar className="w-20 h-20 text-white/20 mx-auto mb-6" />
+            <h3 className="text-2xl font-bold text-white mb-4">Nenhum time encontrado</h3>
+            <p className="text-white/60 mb-6">Crie um time primeiro para gerenciar sua agenda.</p>
+            <a href="/times" className="inline-block bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all">
+              Criar Time
+            </a>
+          </div>
+        ) : (
+          <>
         {/* Tabs */}
         <div className="flex gap-2 mb-8 border-b border-white/10 pb-4 overflow-x-auto">
           <button
@@ -316,6 +545,17 @@ export default function AgendaPage() {
         {/* Tab: Partidas */}
         {activeTab === 'matches' && (
           <>
+            {/* Botão Adicionar Partida */}
+            <div className="flex justify-end mb-6">
+              <button
+                onClick={() => setShowAddMatchModal(true)}
+                className="bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center gap-2 hover:shadow-[0_0_20px_rgba(255,90,0,0.3)]"
+              >
+                <Plus className="w-5 h-5" />
+                Nova Partida
+              </button>
+            </div>
+
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
               <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-green-500/20 rounded-xl p-5">
@@ -550,10 +790,10 @@ export default function AgendaPage() {
                       <div className="flex items-center gap-3">
                         <Calendar className="w-5 h-5 text-[#FF5A00]" />
                         <div>
-                          <div className="text-white font-medium">{formatDate(match.date)}</div>
+                          <div className="text-white font-medium">{formatDate(match.match_date)}</div>
                           <div className="text-white/60 text-sm flex items-center gap-2 mt-1">
                             <Clock className="w-4 h-4" />
-                            {match.time}
+                            {match.match_time}
                           </div>
                         </div>
                       </div>
@@ -567,16 +807,16 @@ export default function AgendaPage() {
                     {/* Match Details */}
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex-1 text-center sm:text-left">
-                        <div className="text-xl sm:text-2xl font-bold text-white mb-2">{match.homeTeam}</div>
+                        <div className="text-xl sm:text-2xl font-bold text-white mb-2">{match.home_team_name}</div>
                         <div className="text-white/40 text-sm">Casa</div>
                       </div>
                       
                       <div className="px-6 sm:px-8">
-                        {match.score ? (
+                        {match.score_home !== null && match.score_away !== null ? (
                           <div className="flex items-center gap-4">
-                            <div className="text-3xl font-bold text-white">{match.score.home}</div>
+                            <div className="text-3xl font-bold text-white">{match.score_home}</div>
                             <div className="text-white/40">×</div>
-                            <div className="text-3xl font-bold text-white">{match.score.away}</div>
+                            <div className="text-3xl font-bold text-white">{match.score_away}</div>
                           </div>
                         ) : (
                           <div className="px-6 py-3 bg-[#FF5A00]/10 rounded-xl">
@@ -586,7 +826,7 @@ export default function AgendaPage() {
                       </div>
                       
                       <div className="flex-1 text-center sm:text-right">
-                        <div className="text-xl sm:text-2xl font-bold text-white mb-2">{match.awayTeam}</div>
+                        <div className="text-xl sm:text-2xl font-bold text-white mb-2">{match.away_team_name}</div>
                         <div className="text-white/40 text-sm">Visitante</div>
                       </div>
                     </div>
@@ -664,12 +904,12 @@ export default function AgendaPage() {
                 <div className="bg-white/5 rounded-xl p-6">
                   <div className="flex items-center justify-between">
                     <div className="text-center flex-1">
-                      <div className="text-2xl font-bold text-white mb-1">{selectedMatch.homeTeam}</div>
+                      <div className="text-2xl font-bold text-white mb-1">{selectedMatch.home_team_name}</div>
                       <div className="text-white/40 text-sm">Casa</div>
                     </div>
                     
                     <div className="px-6">
-                      {selectedMatch.status === 'completed' && editingScore ? (
+                      {editingScore ? (
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
@@ -689,26 +929,23 @@ export default function AgendaPage() {
                         </div>
                       ) : (
                         <>
-                          {(() => {
-                            const matchData = getMatchData(selectedMatch);
-                            return matchData.score ? (
-                              <div className="flex items-center gap-3">
-                                <div className="text-3xl font-bold text-white">{matchData.score.home}</div>
-                                <div className="text-white/40 text-xl">×</div>
-                                <div className="text-3xl font-bold text-white">{matchData.score.away}</div>
-                              </div>
-                            ) : (
-                              <div className="px-4 py-2 bg-[#FF5A00]/20 rounded-xl">
-                                <div className="text-[#FF5A00] font-bold">VS</div>
-                              </div>
-                            );
-                          })()}
+                          {selectedMatch.score_home !== null && selectedMatch.score_away !== null ? (
+                            <div className="flex items-center gap-3">
+                              <div className="text-3xl font-bold text-white">{selectedMatch.score_home}</div>
+                              <div className="text-white/40 text-xl">×</div>
+                              <div className="text-3xl font-bold text-white">{selectedMatch.score_away}</div>
+                            </div>
+                          ) : (
+                            <div className="px-4 py-2 bg-[#FF5A00]/20 rounded-xl">
+                              <div className="text-[#FF5A00] font-bold">VS</div>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
                     
                     <div className="text-center flex-1">
-                      <div className="text-2xl font-bold text-white mb-1">{selectedMatch.awayTeam}</div>
+                      <div className="text-2xl font-bold text-white mb-1">{selectedMatch.away_team_name}</div>
                       <div className="text-white/40 text-sm">Visitante</div>
                     </div>
                   </div>
@@ -718,12 +955,12 @@ export default function AgendaPage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 text-white/80">
                     <Calendar className="w-5 h-5 text-[#FF5A00]" />
-                    <span className="capitalize">{formatDate(selectedMatch.date)}</span>
+                    <span className="capitalize">{formatDate(selectedMatch.match_date)}</span>
                   </div>
                   
                   <div className="flex items-center gap-3 text-white/80">
                     <Clock className="w-5 h-5 text-[#FF5A00]" />
-                    <span>{selectedMatch.time}</span>
+                    <span>{selectedMatch.match_time}</span>
                   </div>
                   
                   <div className="flex items-center gap-3 text-white/80">
@@ -780,32 +1017,29 @@ export default function AgendaPage() {
                       </div>
                     ) : (
                       <>
-                        {(() => {
-                          const matchData = getMatchData(selectedMatch);
-                          return matchData.highlight ? (
-                            <div className="flex items-center gap-4 bg-white/5 rounded-xl p-4">
-                              {matchData.highlight.photo ? (
-                                <img 
-                                  src={matchData.highlight.photo} 
-                                  alt={matchData.highlight.name} 
-                                  className="w-16 h-16 rounded-full object-cover border-2 border-[#FF5A00]"
-                                />
-                              ) : (
-                                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-                                  <User className="w-6 h-6 text-white/40" />
-                                </div>
-                              )}
-                              <div>
-                                <div className="text-[#FF5A00] text-xs font-medium mb-1">⭐ Destaque</div>
-                                <div className="text-white font-bold">{matchData.highlight.name}</div>
+                        {selectedMatch.highlight_player_name ? (
+                          <div className="flex items-center gap-4 bg-white/5 rounded-xl p-4">
+                            {selectedMatch.highlight_player_photo ? (
+                              <img 
+                                src={selectedMatch.highlight_player_photo} 
+                                alt={selectedMatch.highlight_player_name} 
+                                className="w-16 h-16 rounded-full object-cover border-2 border-[#FF5A00]"
+                              />
+                            ) : (
+                              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+                                <User className="w-6 h-6 text-white/40" />
                               </div>
+                            )}
+                            <div>
+                              <div className="text-[#FF5A00] text-xs font-medium mb-1">⭐ Destaque</div>
+                              <div className="text-white font-bold">{selectedMatch.highlight_player_name}</div>
                             </div>
-                          ) : (
-                            <div className="text-white/40 text-sm italic">
-                              Nenhum destaque definido. Clique em "Editar Resultado" para adicionar.
-                            </div>
-                          );
-                        })()}
+                          </div>
+                        ) : (
+                          <div className="text-white/40 text-sm italic">
+                            Nenhum destaque definido. Clique em &quot;Editar Resultado&quot; para adicionar.
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -859,6 +1093,117 @@ export default function AgendaPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Modal Adicionar Partida */}
+        {showAddMatchModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF5A00]/30 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-6 border-b border-white/10">
+                <h2 className="text-xl font-bold text-white">Nova Partida</h2>
+                <button
+                  onClick={() => setShowAddMatchModal(false)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-white/60" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Time da Casa</label>
+                  <input
+                    type="text"
+                    value={matchFormData.home_team_name}
+                    onChange={(e) => setMatchFormData({ ...matchFormData, home_team_name: e.target.value })}
+                    placeholder={userTeams.find(t => t.id === selectedTeamId)?.name || 'Meu Time'}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Time Visitante *</label>
+                  <input
+                    type="text"
+                    value={matchFormData.away_team_name}
+                    onChange={(e) => setMatchFormData({ ...matchFormData, away_team_name: e.target.value })}
+                    placeholder="Nome do adversário"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-white/80 mb-2 font-medium">Data *</label>
+                    <input
+                      type="date"
+                      value={matchFormData.match_date}
+                      onChange={(e) => setMatchFormData({ ...matchFormData, match_date: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-white/80 mb-2 font-medium">Horário *</label>
+                    <input
+                      type="time"
+                      value={matchFormData.match_time}
+                      onChange={(e) => setMatchFormData({ ...matchFormData, match_time: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Local</label>
+                  <input
+                    type="text"
+                    value={matchFormData.location}
+                    onChange={(e) => setMatchFormData({ ...matchFormData, location: e.target.value })}
+                    placeholder="Ex: Campo do Bairro"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Status</label>
+                  <select
+                    value={matchFormData.status}
+                    onChange={(e) => setMatchFormData({ ...matchFormData, status: e.target.value as Match['status'] })}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
+                  >
+                    <option value="scheduled" className="bg-[#1A1A1A]">Agendado</option>
+                    <option value="confirmed" className="bg-[#1A1A1A]">Confirmado</option>
+                    <option value="pending" className="bg-[#1A1A1A]">Pendente</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setShowAddMatchModal(false)}
+                    className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleAddMatch}
+                    disabled={!matchFormData.match_date || !matchFormData.match_time || savingMatch}
+                    className="flex-1 bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {savingMatch ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      'Adicionar'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+          </>
         )}
       </main>
     </div>
