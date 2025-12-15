@@ -18,6 +18,7 @@ export default function ConvitesPage() {
   const [allInvites, setAllInvites] = useState<MatchInvite[]>([]);
   const [chatMessages, setChatMessages] = useState<InviteMessage[]>([]);
   const [lastMessages, setLastMessages] = useState<Record<string, InviteMessage>>({});
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   
   const [showNotification, setShowNotification] = useState<string | null>(null);
   const [selectedInvite, setSelectedInvite] = useState<MatchInvite | null>(null);
@@ -70,12 +71,26 @@ export default function ConvitesPage() {
             if (messages) {
               // Agrupar por invite_id e pegar apenas a última (primeira do array ordenado desc)
               const lastMsgs: Record<string, InviteMessage> = {};
+              const unreadByInvite: Record<string, number> = {};
+              
+              // Criar um mapa de convites para saber quem é o "outro time"
+              const inviteMap = new Map(invites.map(inv => [inv.id, inv]));
+              
               messages.forEach(msg => {
                 if (!lastMsgs[msg.invite_id]) {
                   lastMsgs[msg.invite_id] = msg;
                 }
+                
+                // Contar mensagens não lidas (enviadas por outro time, sem read_at)
+                // Só conta se a mensagem NÃO foi enviada por um dos meus times
+                const isFromMyTeam = teamIds.includes(msg.sender_team_id);
+                if (!msg.read_at && !isFromMyTeam) {
+                  unreadByInvite[msg.invite_id] = (unreadByInvite[msg.invite_id] || 0) + 1;
+                }
               });
+              
               setLastMessages(lastMsgs);
+              setUnreadCounts(unreadByInvite);
             }
           }
         }
@@ -112,19 +127,68 @@ export default function ConvitesPage() {
     inv.status === 'declined'
   );
 
+  // Total de mensagens não lidas em convites enviados
+  const unreadInSentInvites = sentInvites.reduce((total, inv) => total + (unreadCounts[inv.id] || 0), 0);
+
   // Função para aceitar convite
   const handleAccept = async (inviteId: string) => {
-    const { error } = await supabase
+    // Buscar dados do convite
+    const invite = allInvites.find(inv => inv.id === inviteId);
+    if (!invite) {
+      setShowNotification('Convite não encontrado.');
+      return;
+    }
+
+    // Atualizar status do convite
+    const { error: updateError } = await supabase
       .from('match_invites')
       .update({ status: 'accepted', updated_at: new Date().toISOString() })
       .eq('id', inviteId);
 
-    if (error) {
-      console.error('Erro ao aceitar convite:', error);
+    if (updateError) {
+      console.error('Erro ao aceitar convite:', updateError);
       setShowNotification('Erro ao aceitar convite.');
+      setTimeout(() => setShowNotification(null), 3000);
+      return;
+    }
+
+    // Criar partida na tabela matches
+    // Determinar qual time do usuário está aceitando (é o to_team)
+    const myTeamId = userTeams.find(t => t.id === invite.to_team_id)?.id || invite.to_team_id;
+    
+    const { data: matchData, error: matchError } = await supabase
+      .from('matches')
+      .insert({
+        team_id: myTeamId,
+        home_team_id: invite.from_team_id,
+        home_team_name: invite.from_team_name,
+        away_team_id: invite.to_team_id,
+        away_team_name: invite.to_team_name,
+        match_date: invite.proposed_date,
+        match_time: invite.proposed_time,
+        location: invite.proposed_location || 'A definir',
+        status: 'confirmed'
+      })
+      .select()
+      .single();
+
+    if (matchError || !matchData) {
+      console.error('Erro ao criar partida:', matchError);
+      // Reverter status do convite se falhar ao criar partida
+      await supabase
+        .from('match_invites')
+        .update({ status: 'pending' })
+        .eq('id', inviteId);
+      setShowNotification('Erro ao criar partida na agenda.');
     } else {
+      // Atualizar o convite com o match_id
+      await supabase
+        .from('match_invites')
+        .update({ match_id: matchData.id })
+        .eq('id', inviteId);
+
       setAllInvites(prev => prev.map(inv => 
-        inv.id === inviteId ? { ...inv, status: 'accepted' as const } : inv
+        inv.id === inviteId ? { ...inv, status: 'accepted' as const, match_id: matchData.id } : inv
       ));
       setShowNotification('Convite aceito! A partida foi adicionada à sua Agenda.');
       setSelectedInvite(null);
@@ -218,13 +282,24 @@ export default function ConvitesPage() {
       setSelectedInvite(targetInvite);
       await loadChatMessages(targetInvite.id);
       setShowChatModal(true);
+      
+      // Marcar mensagens como lidas (mensagens enviadas pelo outro time)
+      if (unreadCounts[targetInvite.id] > 0) {
+        await supabase
+          .from('invite_messages')
+          .update({ read_at: new Date().toISOString() })
+          .eq('invite_id', targetInvite.id)
+          .not('sender_team_id', 'in', `(${userTeamIds.join(',')})`)
+          .is('read_at', null);
+        
+        // Atualizar estado local
+        setUnreadCounts(prev => {
+          const updated = { ...prev };
+          delete updated[targetInvite.id];
+          return updated;
+        });
+      }
     }
-  };
-
-  // Contar mensagens não lidas de um convite (simplificado)
-  const getUnreadCount = (): number => {
-    // TODO: Implementar contagem de não lidas com read_at
-    return 0;
   };
 
   const sendMessage = async () => {
@@ -371,13 +446,18 @@ export default function ConvitesPage() {
           
           <button
             onClick={() => setFilter('sent')}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
+            className={`relative px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
               filter === 'sent'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white/10 text-white/60 hover:bg-white/20'
             }`}
           >
             Enviados ({sentInvites.length})
+            {unreadInSentInvites > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
+                {unreadInSentInvites}
+              </span>
+            )}
           </button>
           
           <button
@@ -494,13 +574,21 @@ export default function ConvitesPage() {
                 {/* Mensagem do convite - clicável para abrir chat (mostra última mensagem do chat) */}
                 {(lastMessages[invite.id] || invite.message) && (
                   <div 
-                    className="bg-white/5 hover:bg-white/10 rounded-xl p-4 mb-4 cursor-pointer transition-colors"
+                    className={`relative bg-white/5 hover:bg-white/10 rounded-xl p-4 mb-4 cursor-pointer transition-colors ${unreadCounts[invite.id] ? 'border border-red-500/50' : ''}`}
                     onClick={(e) => { e.stopPropagation(); openChat(invite); }}
                   >
+                    {unreadCounts[invite.id] > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
+                        {unreadCounts[invite.id]}
+                      </span>
+                    )}
                     <div className="flex items-start gap-2">
-                      <MessageCircle className="w-4 h-4 text-[#FF5A00] mt-0.5" />
+                      <MessageCircle className={`w-4 h-4 mt-0.5 ${unreadCounts[invite.id] ? 'text-red-500' : 'text-[#FF5A00]'}`} />
                       <div className="flex-1">
-                        <div className="text-white/60 text-xs mb-1">Mensagem</div>
+                        <div className="text-white/60 text-xs mb-1">
+                          Mensagem
+                          {unreadCounts[invite.id] > 0 && <span className="text-red-500 ml-2">• Nova</span>}
+                        </div>
                         <div className="text-white text-sm">
                           {lastMessages[invite.id] 
                             ? <><span className="text-[#FF5A00] font-medium">{lastMessages[invite.id].sender_name}:</span> {lastMessages[invite.id].message}</>

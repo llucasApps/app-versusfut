@@ -81,11 +81,11 @@ export default function AgendaPage() {
     const fetchMatchesAndSettings = async () => {
       if (!selectedTeamId) return;
 
-      // Carregar partidas
+      // Carregar partidas (onde o time é dono, home ou away)
       const { data: matchesData } = await supabase
         .from('matches')
         .select('*')
-        .eq('team_id', selectedTeamId)
+        .or(`team_id.eq.${selectedTeamId},home_team_id.eq.${selectedTeamId},away_team_id.eq.${selectedTeamId}`)
         .order('match_date', { ascending: false });
 
       if (matchesData) {
@@ -125,7 +125,7 @@ export default function AgendaPage() {
     const { data } = await supabase
       .from('matches')
       .select('*')
-      .eq('team_id', selectedTeamId)
+      .or(`team_id.eq.${selectedTeamId},home_team_id.eq.${selectedTeamId},away_team_id.eq.${selectedTeamId}`)
       .order('match_date', { ascending: false });
     if (data) setMatches(data);
   };
