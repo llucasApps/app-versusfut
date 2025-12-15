@@ -40,15 +40,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let isMounted = true;
+    
+    // Timeout de segurança para evitar loading infinito
+    const loadingTimeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Timeout ao carregar sessão, resetando estado');
+        setLoading(false);
+      }
+    }, 5000); // 5 segundos de timeout
+
     // Verificar sessão atual
     const getSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
+        if (!isMounted) return;
+        
         if (error) {
           console.error('Erro ao obter sessão:', error.message);
-          // Limpar tokens inválidos
-          await supabase.auth.signOut();
+          // Limpar tokens inválidos silenciosamente
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // Ignorar erro de signOut
+          }
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -61,17 +77,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (session?.user) {
           const profile = await fetchProfile(session.user.id);
-          setProfile(profile);
+          if (isMounted) {
+            setProfile(profile);
+          }
         }
       } catch (err) {
         console.error('Erro inesperado ao verificar sessão:', err);
+        if (!isMounted) return;
         // Limpar estado em caso de erro
-        await supabase.auth.signOut();
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // Ignorar erro de signOut
+        }
         setSession(null);
         setUser(null);
         setProfile(null);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -80,6 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Escutar mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+        
         // Tratar erro de token inválido
         if (event === 'TOKEN_REFRESHED' && !session) {
           // Token refresh falhou, limpar sessão
@@ -95,7 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           const profile = await fetchProfile(session.user.id);
-          setProfile(profile);
+          if (isMounted) {
+            setProfile(profile);
+          }
         } else {
           setProfile(null);
         }
@@ -110,6 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     return () => {
+      isMounted = false;
+      clearTimeout(loadingTimeout);
       subscription.unsubscribe();
     };
   }, [router]);

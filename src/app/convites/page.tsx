@@ -130,9 +130,34 @@ export default function ConvitesPage() {
     setTimeout(() => setShowNotification(null), 3000);
   };
 
+  // Função para cancelar convite enviado
+  const handleCancel = async (inviteId: string) => {
+    if (!confirm('Tem certeza que deseja cancelar este convite?')) return;
+
+    const { error, count } = await supabase
+      .from('match_invites')
+      .delete()
+      .eq('id', inviteId)
+      .select();
+
+    console.log('Delete result:', { error, count, inviteId });
+
+    if (error) {
+      console.error('Erro ao cancelar convite:', error);
+      setShowNotification('Erro ao cancelar convite: ' + error.message);
+    } else {
+      setAllInvites(prev => prev.filter(inv => inv.id !== inviteId));
+      setShowNotification('Convite cancelado com sucesso.');
+      setSelectedInvite(null);
+    }
+    setTimeout(() => setShowNotification(null), 3000);
+  };
+
   const formatDate = (dateString: string) => {
     if (!mounted) return '';
-    return new Date(dateString).toLocaleDateString('pt-BR', { 
+    // Adiciona T00:00:00 para evitar problemas de timezone
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString('pt-BR', { 
       weekday: 'long', 
       day: 'numeric', 
       month: 'long', 
@@ -165,9 +190,11 @@ export default function ConvitesPage() {
     }
   };
 
-  const openChat = async () => {
-    if (selectedInvite) {
-      await loadChatMessages(selectedInvite.id);
+  const openChat = async (invite?: MatchInvite) => {
+    const targetInvite = invite || selectedInvite;
+    if (targetInvite) {
+      setSelectedInvite(targetInvite);
+      await loadChatMessages(targetInvite.id);
       setShowChatModal(true);
     }
   };
@@ -423,7 +450,7 @@ export default function ConvitesPage() {
                   <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
                     <div className="text-center flex-1">
                       <div className="text-white font-bold">{invite.from_team_name}</div>
-                      <div className="text-white/40 text-xs">Desafiante</div>
+                      {/* <div className="text-white/40 text-xs">Desafiante</div> */}
                     </div>
                     
                     <div className="px-4 py-2 bg-[#FF5A00]/10 rounded-lg">
@@ -432,20 +459,24 @@ export default function ConvitesPage() {
                     
                     <div className="text-center flex-1">
                       <div className="text-white font-bold">{invite.to_team_name}</div>
-                      <div className="text-white/40 text-xs">Desafiado</div>
+                      {/* <div className="text-white/40 text-xs">Desafiado</div> */}
                     </div>
                   </div>
                 </div>
 
-                {/* Mensagem do convite */}
+                {/* Mensagem do convite - clicável para abrir chat */}
                 {invite.message && (
-                  <div className="bg-white/5 rounded-xl p-4 mb-4">
+                  <div 
+                    className="bg-white/5 hover:bg-white/10 rounded-xl p-4 mb-4 cursor-pointer transition-colors"
+                    onClick={(e) => { e.stopPropagation(); openChat(invite); }}
+                  >
                     <div className="flex items-start gap-2">
                       <MessageCircle className="w-4 h-4 text-[#FF5A00] mt-0.5" />
-                      <div>
+                      <div className="flex-1">
                         <div className="text-white/60 text-xs mb-1">Mensagem</div>
                         <div className="text-white text-sm">{invite.message}</div>
                       </div>
+                      <ArrowRight className="w-4 h-4 text-white/40" />
                     </div>
                   </div>
                 )}
@@ -552,7 +583,7 @@ export default function ConvitesPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={openChat}
+                  onClick={() => openChat()}
                   className="flex items-center gap-2 bg-[#FF6B00]/10 hover:bg-[#FF6B00]/20 text-[#FF6B00] px-4 py-2 rounded-xl transition-all"
                 >
                   <MessageCircle className="w-5 h-5" />
@@ -651,7 +682,7 @@ export default function ConvitesPage() {
                   <div className="text-center flex-1">
                     <div className="text-3xl mb-2">⚽</div>
                     <div className="text-white font-bold">{selectedInvite.from_team_name}</div>
-                    <div className="text-white/40 text-xs">Desafiante</div>
+                    {/* <div className="text-white/40 text-xs">Desafiante</div> */}
                   </div>
                   <div className="px-6 py-3 bg-[#FF6B00]/10 rounded-xl">
                     <div className="text-[#FF6B00] font-bold text-xl">VS</div>
@@ -659,7 +690,7 @@ export default function ConvitesPage() {
                   <div className="text-center flex-1">
                     <div className="text-3xl mb-2">⚽</div>
                     <div className="text-white font-bold">{selectedInvite.to_team_name}</div>
-                    <div className="text-white/40 text-xs">Desafiado</div>
+                    {/* <div className="text-white/40 text-xs">Desafiado</div> */}
                   </div>
                 </div>
               </div>
@@ -675,7 +706,7 @@ export default function ConvitesPage() {
                 </div>
               )}
 
-              {/* Ações - apenas para convites recebidos pendentes */}
+              {/* Ações - para convites recebidos pendentes */}
               {isReceivedInvite(selectedInvite) && selectedInvite.status === 'pending' && (
                 <div className="flex gap-3 pt-4 border-t border-white/10">
                   <button 
@@ -691,6 +722,19 @@ export default function ConvitesPage() {
                   >
                     <XCircle className="w-5 h-5" />
                     Recusar
+                  </button>
+                </div>
+              )}
+
+              {/* Ações - para convites enviados pendentes */}
+              {!isReceivedInvite(selectedInvite) && selectedInvite.status === 'pending' && (
+                <div className="flex gap-3 pt-4 border-t border-white/10">
+                  <button 
+                    onClick={() => handleCancel(selectedInvite.id)}
+                    className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-500 font-bold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
+                  >
+                    <XCircle className="w-5 h-5" />
+                    Cancelar Convite
                   </button>
                 </div>
               )}

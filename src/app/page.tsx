@@ -2,10 +2,37 @@
 
 import Navigation from '@/components/Navigation';
 import { myTeams, matches, invites } from '@/lib/mock-data';
-import { TrendingUp, Users, Calendar, Trophy, ArrowRight, Clock } from 'lucide-react';
+import { TrendingUp, Users, Calendar, Trophy, ArrowRight, Clock, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function Dashboard() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  // Redirecionar para login se não estiver autenticado
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  // Mostrar loading enquanto verifica autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#FF6B00] animate-spin" />
+      </div>
+    );
+  }
+
+  // Não renderizar nada enquanto redireciona
+  if (!user) {
+    return null;
+  }
+
   const upcomingMatches = matches.filter(m => m.status === 'scheduled' || m.status === 'confirmed').slice(0, 3);
   const pendingInvites = invites.filter(i => i.status === 'pending');
   

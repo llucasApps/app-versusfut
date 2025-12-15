@@ -152,7 +152,7 @@ export default function BuscarPage() {
     // Formatar data para o banco
     const dateStr = selectedDate.toISOString().split('T')[0];
 
-    const { error } = await supabase
+    const { data: inviteData, error } = await supabase
       .from('match_invites')
       .insert({
         from_team_id: myTeam.id,
@@ -164,14 +164,28 @@ export default function BuscarPage() {
         proposed_location: selectedTeam.has_venue ? 'Local do adversário' : null,
         message: message || null,
         status: 'pending'
-      });
+      })
+      .select()
+      .single();
 
     setSending(false);
 
-    if (error) {
+    if (error || !inviteData) {
       console.error('Erro ao enviar convite:', error);
-      alert('Erro ao enviar convite: ' + error.message);
+      alert('Erro ao enviar convite: ' + error?.message);
       return;
+    }
+
+    // Se houver mensagem, inserir também na tabela invite_messages
+    if (message && message.trim()) {
+      await supabase
+        .from('invite_messages')
+        .insert({
+          invite_id: inviteData.id,
+          sender_team_id: myTeam.id,
+          sender_name: myTeam.name,
+          message: message.trim()
+        });
     }
 
     const formattedDate = selectedDate.toLocaleDateString('pt-BR', {
