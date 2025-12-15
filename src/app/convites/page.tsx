@@ -1,72 +1,132 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { matches, allTeams, Match, Team } from '@/lib/mock-data';
-import { Mail, CheckCircle, XCircle, Clock, Calendar, MapPin, Send, AlertCircle, ArrowRight, X, Users, Trophy, Target, Shield, Phone, User, MessageCircle } from 'lucide-react';
+import { supabase, Team, MatchInvite, InviteMessage } from '@/lib/supabase';
+import { Mail, CheckCircle, XCircle, Clock, Calendar, MapPin, Send, AlertCircle, ArrowRight, X, Users, Trophy, Target, Shield, Phone, User, MessageCircle, Loader2 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-
-interface ChatMessage {
-  id: string;
-  matchId: string;
-  sender: 'me' | 'them';
-  senderName: string;
-  message: string;
-  timestamp: string;
-}
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ConvitesPage() {
-  const [filter, setFilter] = useState<'received' | 'accepted' | 'declined'>('received');
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'received' | 'sent' | 'accepted' | 'declined'>('received');
   const [mounted, setMounted] = useState(false);
-  const [acceptedMatches, setAcceptedMatches] = useState<string[]>([]);
-  const [declinedMatches, setDeclinedMatches] = useState<string[]>([]);
+  
+  // Dados do Supabase
+  const [userTeams, setUserTeams] = useState<Team[]>([]);
+  const [allInvites, setAllInvites] = useState<MatchInvite[]>([]);
+  const [chatMessages, setChatMessages] = useState<InviteMessage[]>([]);
+  
   const [showNotification, setShowNotification] = useState<string | null>(null);
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [selectedInvite, setSelectedInvite] = useState<MatchInvite | null>(null);
   const [showChatModal, setShowChatModal] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [readMessages, setReadMessages] = useState<Record<string, number>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Carregar dados do Supabase
   useEffect(() => {
     setMounted(true);
-    // Carregar convites aceitos/recusados do localStorage
-    const savedAccepted = localStorage.getItem('acceptedMatches');
-    const savedDeclined = localStorage.getItem('declinedMatches');
-    const savedReadMessages = localStorage.getItem('readMessages');
-    if (savedAccepted) setAcceptedMatches(JSON.parse(savedAccepted));
-    if (savedDeclined) setDeclinedMatches(JSON.parse(savedDeclined));
-    if (savedReadMessages) setReadMessages(JSON.parse(savedReadMessages));
-  }, []);
+    
+    const fetchData = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-  // Partidas pendentes são convites recebidos
-  const receivedInvites = matches.filter(m => 
-    (m.status === 'pending' || m.status === 'scheduled') && 
-    !acceptedMatches.includes(m.id) && 
-    !declinedMatches.includes(m.id)
+      setLoading(true);
+
+      // Carregar times do usuário
+      const { data: myTeams } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('owner_id', user.id);
+
+      if (myTeams) {
+        setUserTeams(myTeams);
+        
+        // Carregar convites onde o usuário é remetente ou destinatário
+        const teamIds = myTeams.map(t => t.id);
+        
+        const { data: invites } = await supabase
+          .from('match_invites')
+          .select('*')
+          .or(`from_team_id.in.(${teamIds.join(',')}),to_team_id.in.(${teamIds.join(',')})`)
+          .order('created_at', { ascending: false });
+
+        if (invites) {
+          setAllInvites(invites);
+        }
+      }
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [user]);
+
+  // IDs dos times do usuário
+  const userTeamIds = userTeams.map(t => t.id);
+
+  // Convites recebidos (pendentes)
+  const receivedInvites = allInvites.filter(inv => 
+    userTeamIds.includes(inv.to_team_id) && inv.status === 'pending'
   );
   
-  // Convites aceitos (partidas que aceitei)
-  const acceptedInvitesList = matches.filter(m => acceptedMatches.includes(m.id));
+  // Convites enviados (pendentes)
+  const sentInvites = allInvites.filter(inv => 
+    userTeamIds.includes(inv.from_team_id) && inv.status === 'pending'
+  );
+  
+  // Convites aceitos
+  const acceptedInvites = allInvites.filter(inv => 
+    (userTeamIds.includes(inv.from_team_id) || userTeamIds.includes(inv.to_team_id)) && 
+    inv.status === 'accepted'
+  );
   
   // Convites recusados
-  const declinedInvitesList = matches.filter(m => declinedMatches.includes(m.id));
+  const declinedInvites = allInvites.filter(inv => 
+    (userTeamIds.includes(inv.from_team_id) || userTeamIds.includes(inv.to_team_id)) && 
+    inv.status === 'declined'
+  );
 
   // Função para aceitar convite
-  const handleAccept = (matchId: string) => {
-    const newAccepted = [...acceptedMatches, matchId];
-    setAcceptedMatches(newAccepted);
-    localStorage.setItem('acceptedMatches', JSON.stringify(newAccepted));
-    setShowNotification('Convite aceito! A partida foi adicionada à sua Agenda.');
+  const handleAccept = async (inviteId: string) => {
+    const { error } = await supabase
+      .from('match_invites')
+      .update({ status: 'accepted', updated_at: new Date().toISOString() })
+      .eq('id', inviteId);
+
+    if (error) {
+      console.error('Erro ao aceitar convite:', error);
+      setShowNotification('Erro ao aceitar convite.');
+    } else {
+      setAllInvites(prev => prev.map(inv => 
+        inv.id === inviteId ? { ...inv, status: 'accepted' as const } : inv
+      ));
+      setShowNotification('Convite aceito! A partida foi adicionada à sua Agenda.');
+      setSelectedInvite(null);
+    }
     setTimeout(() => setShowNotification(null), 3000);
   };
 
   // Função para recusar convite
-  const handleDecline = (matchId: string) => {
-    const newDeclined = [...declinedMatches, matchId];
-    setDeclinedMatches(newDeclined);
-    localStorage.setItem('declinedMatches', JSON.stringify(newDeclined));
-    setShowNotification('Convite recusado.');
+  const handleDecline = async (inviteId: string) => {
+    const { error } = await supabase
+      .from('match_invites')
+      .update({ status: 'declined', updated_at: new Date().toISOString() })
+      .eq('id', inviteId);
+
+    if (error) {
+      console.error('Erro ao recusar convite:', error);
+      setShowNotification('Erro ao recusar convite.');
+    } else {
+      setAllInvites(prev => prev.map(inv => 
+        inv.id === inviteId ? { ...inv, status: 'declined' as const } : inv
+      ));
+      setShowNotification('Convite recusado.');
+      setSelectedInvite(null);
+    }
     setTimeout(() => setShowNotification(null), 3000);
   };
 
@@ -81,92 +141,72 @@ export default function ConvitesPage() {
   };
 
   // Função para abrir detalhes do convite
-  const openInviteDetails = (match: Match) => {
-    setSelectedMatch(match);
+  const openInviteDetails = (invite: MatchInvite) => {
+    setSelectedInvite(invite);
   };
 
-  // Buscar time pelo nome
-  const getTeamByName = (name: string): Team | undefined => {
-    return allTeams.find(t => t.name === name);
-  };
-
-  // Foto do elenco baseada no ID do time
-  const getTeamElencoPhoto = (teamId: string): string => {
-    const photos: Record<string, string> = {
-      '1': 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
-      '2': 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=800&q=80',
-      '3': 'https://images.unsplash.com/photo-1560272564-c83b66b1ad12?w=800&q=80',
-      '4': 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
-      '5': 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800&q=80',
-      '6': 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=800&q=80',
-    };
-    return photos[teamId] || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80';
+  // Foto do elenco - placeholder
+  const getTeamElencoPhoto = (): string => {
+    return 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80';
   };
 
   // Funções do Chat
-  const loadChatMessages = (matchId: string) => {
-    const saved = localStorage.getItem(`chat_${matchId}`);
-    if (saved) {
-      setChatMessages(JSON.parse(saved));
+  const loadChatMessages = async (inviteId: string) => {
+    const { data } = await supabase
+      .from('invite_messages')
+      .select('*')
+      .eq('invite_id', inviteId)
+      .order('created_at', { ascending: true });
+
+    if (data) {
+      setChatMessages(data);
     } else {
       setChatMessages([]);
     }
   };
 
-  const saveChatMessages = (matchId: string, messages: ChatMessage[]) => {
-    localStorage.setItem(`chat_${matchId}`, JSON.stringify(messages));
-  };
-
-  const openChat = () => {
-    if (selectedMatch) {
-      loadChatMessages(selectedMatch.id);
+  const openChat = async () => {
+    if (selectedInvite) {
+      await loadChatMessages(selectedInvite.id);
       setShowChatModal(true);
-      // Marcar mensagens como lidas
-      markMessagesAsRead(selectedMatch.id);
     }
   };
 
-  // Contar mensagens não lidas de um convite
-  const getUnreadCount = (matchId: string): number => {
-    const saved = localStorage.getItem(`chat_${matchId}`);
-    if (!saved) return 0;
-    
-    const messages: ChatMessage[] = JSON.parse(saved);
-    const lastReadCount = readMessages[matchId] || 0;
-    
-    // Conta apenas mensagens do outro time (não minhas)
-    const theirMessages = messages.filter(m => m.sender === 'them');
-    return Math.max(0, theirMessages.length - lastReadCount);
+  // Contar mensagens não lidas de um convite (simplificado)
+  const getUnreadCount = (): number => {
+    // TODO: Implementar contagem de não lidas com read_at
+    return 0;
   };
 
-  // Marcar mensagens como lidas
-  const markMessagesAsRead = (matchId: string) => {
-    const saved = localStorage.getItem(`chat_${matchId}`);
-    if (!saved) return;
-    
-    const messages: ChatMessage[] = JSON.parse(saved);
-    const theirMessagesCount = messages.filter(m => m.sender === 'them').length;
-    
-    const updatedReadMessages = { ...readMessages, [matchId]: theirMessagesCount };
-    setReadMessages(updatedReadMessages);
-    localStorage.setItem('readMessages', JSON.stringify(updatedReadMessages));
-  };
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedInvite) return;
 
-  const sendMessage = () => {
-    if (!newMessage.trim() || !selectedMatch) return;
+    // Determinar qual time do usuário está enviando
+    const senderTeam = userTeams.find(t => 
+      t.id === selectedInvite.from_team_id || t.id === selectedInvite.to_team_id
+    );
 
-    const message: ChatMessage = {
-      id: Date.now().toString(),
-      matchId: selectedMatch.id,
-      sender: 'me',
-      senderName: selectedMatch.awayTeam, // Quem recebeu o convite
-      message: newMessage.trim(),
-      timestamp: new Date().toISOString(),
-    };
+    if (!senderTeam) return;
 
-    const updatedMessages = [...chatMessages, message];
-    setChatMessages(updatedMessages);
-    saveChatMessages(selectedMatch.id, updatedMessages);
+    const { data, error } = await supabase
+      .from('invite_messages')
+      .insert({
+        invite_id: selectedInvite.id,
+        sender_team_id: senderTeam.id,
+        sender_name: senderTeam.name,
+        message: newMessage.trim()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      return;
+    }
+
+    if (data) {
+      setChatMessages(prev => [...prev, data]);
+    }
     setNewMessage('');
 
     // Scroll para o final
@@ -187,51 +227,36 @@ export default function ConvitesPage() {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   };
 
-  // Simular resposta do outro time (para teste)
-  const simulateResponse = () => {
-    if (!selectedMatch) return;
-
-    const responses = [
-      'Opa, beleza! Vamos confirmar então.',
-      'Perfeito, estamos combinados!',
-      'Pode ser, só preciso confirmar com o pessoal.',
-      'Show! Nos vemos lá.',
-      'Combinado! Quantos jogadores vocês vão trazer?',
-    ];
-
-    const message: ChatMessage = {
-      id: Date.now().toString(),
-      matchId: selectedMatch.id,
-      sender: 'them',
-      senderName: selectedMatch.homeTeam,
-      message: responses[Math.floor(Math.random() * responses.length)],
-      timestamp: new Date().toISOString(),
-    };
-
-    const updatedMessages = [...chatMessages, message];
-    setChatMessages(updatedMessages);
-    saveChatMessages(selectedMatch.id, updatedMessages);
-
-    setTimeout(() => {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
-
   // Obter lista baseada no filtro
-  const getFilteredList = () => {
+  const getFilteredList = (): MatchInvite[] => {
     switch (filter) {
       case 'received':
         return receivedInvites;
+      case 'sent':
+        return sentInvites;
       case 'accepted':
-        return acceptedInvitesList;
+        return acceptedInvites;
       case 'declined':
-        return declinedInvitesList;
+        return declinedInvites;
       default:
         return receivedInvites;
     }
   };
 
   const filteredList = getFilteredList();
+
+  // Verificar se o convite é recebido (para mostrar botões de aceitar/recusar)
+  const isReceivedInvite = (invite: MatchInvite) => {
+    return userTeamIds.includes(invite.to_team_id);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#FF6B35] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0D0D0D]">
@@ -247,24 +272,31 @@ export default function ConvitesPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-yellow-500/20 rounded-xl p-5">
             <div className="text-3xl font-bold text-yellow-500 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
               {receivedInvites.length}
             </div>
-            <div className="text-white/60 text-sm">Pendentes</div>
+            <div className="text-white/60 text-sm">Recebidos</div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-blue-500/20 rounded-xl p-5">
+            <div className="text-3xl font-bold text-blue-500 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {sentInvites.length}
+            </div>
+            <div className="text-white/60 text-sm">Enviados</div>
           </div>
           
           <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-green-500/20 rounded-xl p-5">
             <div className="text-3xl font-bold text-green-500 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {acceptedInvitesList.length}
+              {acceptedInvites.length}
             </div>
             <div className="text-white/60 text-sm">Aceitos</div>
           </div>
           
           <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-red-500/20 rounded-xl p-5">
             <div className="text-3xl font-bold text-red-500 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {declinedInvitesList.length}
+              {declinedInvites.length}
             </div>
             <div className="text-white/60 text-sm">Recusados</div>
           </div>
@@ -280,7 +312,18 @@ export default function ConvitesPage() {
                 : 'bg-white/10 text-white/60 hover:bg-white/20'
             }`}
           >
-            Pendentes ({receivedInvites.length})
+            Recebidos ({receivedInvites.length})
+          </button>
+          
+          <button
+            onClick={() => setFilter('sent')}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
+              filter === 'sent'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white/10 text-white/60 hover:bg-white/20'
+            }`}
+          >
+            Enviados ({sentInvites.length})
           </button>
           
           <button
@@ -291,7 +334,7 @@ export default function ConvitesPage() {
                 : 'bg-white/10 text-white/60 hover:bg-white/20'
             }`}
           >
-            Aceitos ({acceptedInvitesList.length})
+            Aceitos ({acceptedInvites.length})
           </button>
           
           <button
@@ -302,59 +345,50 @@ export default function ConvitesPage() {
                 : 'bg-white/10 text-white/60 hover:bg-white/20'
             }`}
           >
-            Recusados ({declinedInvitesList.length})
+            Recusados ({declinedInvites.length})
           </button>
         </div>
 
         {/* Invites List */}
         <div className="space-y-4">
-          {filteredList.map((match) => {
-            const isAccepted = acceptedMatches.includes(match.id);
-            const isDeclined = declinedMatches.includes(match.id);
-            const unreadCount = mounted ? getUnreadCount(match.id) : 0;
+          {filteredList.map((invite) => {
+            const isReceived = isReceivedInvite(invite);
             
             return (
               <div 
-                key={match.id} 
+                key={invite.id} 
                 className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF5A00]/20 rounded-2xl p-5 sm:p-6 hover:border-[#FF5A00]/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,90,0,0.15)] cursor-pointer"
-                onClick={() => openInviteDetails(match)}
+                onClick={() => openInviteDetails(invite)}
               >
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-[#FF5A00]/10 rounded-xl relative">
+                    <div className="p-3 bg-[#FF5A00]/10 rounded-xl">
                       <Mail className="w-6 h-6 text-[#FF5A00]" />
-                      {unreadCount > 0 && (
-                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#FF6B00] rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">{unreadCount > 9 ? '9+' : unreadCount}</span>
-                        </div>
-                      )}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-bold text-white">Convite de {match.homeTeam}</h3>
-                        {unreadCount > 0 && (
-                          <div className="flex items-center gap-1 bg-[#FF6B00]/20 text-[#FF6B00] px-2 py-0.5 rounded-full text-xs font-medium">
-                            <MessageCircle className="w-3 h-3" />
-                            {unreadCount} {unreadCount === 1 ? 'nova' : 'novas'}
-                          </div>
-                        )}
+                        <h3 className="text-xl font-bold text-white">
+                          {isReceived ? `Convite de ${invite.from_team_name}` : `Convite para ${invite.to_team_name}`}
+                        </h3>
                       </div>
-                      <p className="text-white/60 text-sm">Para: {match.awayTeam}</p>
+                      <p className="text-white/60 text-sm">
+                        {isReceived ? `Para: ${invite.to_team_name}` : `De: ${invite.from_team_name}`}
+                      </p>
                     </div>
                   </div>
                   
                   <div className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 ${
-                    isAccepted 
+                    invite.status === 'accepted' 
                       ? 'bg-green-500/20 text-green-500' 
-                      : isDeclined
+                      : invite.status === 'declined'
                       ? 'bg-red-500/20 text-red-500'
                       : 'bg-yellow-500/20 text-yellow-500'
                   }`}>
-                    {!isAccepted && !isDeclined && <AlertCircle className="w-4 h-4" />}
-                    {isAccepted && <CheckCircle className="w-4 h-4" />}
-                    {isDeclined && <XCircle className="w-4 h-4" />}
-                    {isAccepted ? 'Aceito' : isDeclined ? 'Recusado' : 'Pendente'}
+                    {invite.status === 'pending' && <AlertCircle className="w-4 h-4" />}
+                    {invite.status === 'accepted' && <CheckCircle className="w-4 h-4" />}
+                    {invite.status === 'declined' && <XCircle className="w-4 h-4" />}
+                    {invite.status === 'accepted' ? 'Aceito' : invite.status === 'declined' ? 'Recusado' : 'Pendente'}
                   </div>
                 </div>
 
@@ -365,7 +399,7 @@ export default function ConvitesPage() {
                       <Calendar className="w-4 h-4 text-[#FF5A00]" />
                       <div>
                         <div className="text-white/60 text-xs">Data</div>
-                        <div className="text-white font-medium text-sm capitalize">{formatDate(match.date)}</div>
+                        <div className="text-white font-medium text-sm capitalize">{formatDate(invite.proposed_date)}</div>
                       </div>
                     </div>
                     
@@ -373,7 +407,7 @@ export default function ConvitesPage() {
                       <Clock className="w-4 h-4 text-[#FF5A00]" />
                       <div>
                         <div className="text-white/60 text-xs">Horário</div>
-                        <div className="text-white font-medium text-sm">{match.time}</div>
+                        <div className="text-white font-medium text-sm">{invite.proposed_time}</div>
                       </div>
                     </div>
                     
@@ -381,15 +415,15 @@ export default function ConvitesPage() {
                       <MapPin className="w-4 h-4 text-[#FF5A00]" />
                       <div>
                         <div className="text-white/60 text-xs">Local</div>
-                        <div className="text-white font-medium text-sm">{match.location}</div>
+                        <div className="text-white font-medium text-sm">{invite.proposed_location || 'A definir'}</div>
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
                     <div className="text-center flex-1">
-                      <div className="text-white font-bold">{match.homeTeam}</div>
-                      <div className="text-white/40 text-xs">Casa</div>
+                      <div className="text-white font-bold">{invite.from_team_name}</div>
+                      <div className="text-white/40 text-xs">Desafiante</div>
                     </div>
                     
                     <div className="px-4 py-2 bg-[#FF5A00]/10 rounded-lg">
@@ -397,24 +431,37 @@ export default function ConvitesPage() {
                     </div>
                     
                     <div className="text-center flex-1">
-                      <div className="text-white font-bold">{match.awayTeam}</div>
-                      <div className="text-white/40 text-xs">Visitante</div>
+                      <div className="text-white font-bold">{invite.to_team_name}</div>
+                      <div className="text-white/40 text-xs">Desafiado</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Actions */}
-                {!isAccepted && !isDeclined && (
+                {/* Mensagem do convite */}
+                {invite.message && (
+                  <div className="bg-white/5 rounded-xl p-4 mb-4">
+                    <div className="flex items-start gap-2">
+                      <MessageCircle className="w-4 h-4 text-[#FF5A00] mt-0.5" />
+                      <div>
+                        <div className="text-white/60 text-xs mb-1">Mensagem</div>
+                        <div className="text-white text-sm">{invite.message}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions - apenas para convites recebidos pendentes */}
+                {isReceived && invite.status === 'pending' && (
                   <div className="flex gap-3">
                     <button 
-                      onClick={(e) => { e.stopPropagation(); handleAccept(match.id); }}
+                      onClick={(e) => { e.stopPropagation(); handleAccept(invite.id); }}
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
                     >
                       <CheckCircle className="w-5 h-5" />
                       Aceitar
                     </button>
                     <button 
-                      onClick={(e) => { e.stopPropagation(); handleDecline(match.id); }}
+                      onClick={(e) => { e.stopPropagation(); handleDecline(invite.id); }}
                       className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-500 font-bold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
                     >
                       <XCircle className="w-5 h-5" />
@@ -423,7 +470,15 @@ export default function ConvitesPage() {
                   </div>
                 )}
 
-                {isAccepted && (
+                {/* Status para convites enviados pendentes */}
+                {!isReceived && invite.status === 'pending' && (
+                  <div className="bg-yellow-500/10 text-yellow-500 font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    Aguardando resposta
+                  </div>
+                )}
+
+                {invite.status === 'accepted' && (
                   <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex-1 bg-green-500/10 text-green-500 font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-2">
                       <CheckCircle className="w-5 h-5" />
@@ -436,10 +491,10 @@ export default function ConvitesPage() {
                   </div>
                 )}
 
-                {isDeclined && (
+                {invite.status === 'declined' && (
                   <div className="bg-red-500/10 text-red-500 font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-2">
                     <XCircle className="w-5 h-5" />
-                    Desafio Recusado
+                    Convite Recusado
                   </div>
                 )}
               </div>
@@ -479,7 +534,7 @@ export default function ConvitesPage() {
       </main>
 
       {/* Modal Detalhes do Convite */}
-      {selectedMatch && (
+      {selectedInvite && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header do Modal */}
@@ -489,7 +544,10 @@ export default function ConvitesPage() {
                   Detalhes do Convite
                 </h2>
                 <p className="text-white/60 text-sm mt-1">
-                  Convite de {selectedMatch.homeTeam}
+                  {isReceivedInvite(selectedInvite) 
+                    ? `Convite de ${selectedInvite.from_team_name}`
+                    : `Convite para ${selectedInvite.to_team_name}`
+                  }
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -501,7 +559,7 @@ export default function ConvitesPage() {
                   <span className="hidden sm:inline">Chat</span>
                 </button>
                 <button
-                  onClick={() => setSelectedMatch(null)}
+                  onClick={() => setSelectedInvite(null)}
                   className="text-white/60 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
                 >
                   <X className="w-6 h-6" />
@@ -512,36 +570,41 @@ export default function ConvitesPage() {
             <div className="p-6 space-y-6">
               {/* Status do Convite */}
               <div className={`p-4 rounded-xl flex items-center gap-3 ${
-                acceptedMatches.includes(selectedMatch.id)
+                selectedInvite.status === 'accepted'
                   ? 'bg-green-500/10 border border-green-500/20'
-                  : declinedMatches.includes(selectedMatch.id)
+                  : selectedInvite.status === 'declined'
                   ? 'bg-red-500/10 border border-red-500/20'
                   : 'bg-yellow-500/10 border border-yellow-500/20'
               }`}>
-                {acceptedMatches.includes(selectedMatch.id) && (
+                {selectedInvite.status === 'accepted' && (
                   <>
                     <CheckCircle className="w-6 h-6 text-green-500" />
                     <div>
                       <div className="text-green-500 font-bold">Convite Aceito</div>
-                      <div className="text-green-500/60 text-sm">Esta partida está confirmada na sua agenda</div>
+                      <div className="text-green-500/60 text-sm">Esta partida está confirmada</div>
                     </div>
                   </>
                 )}
-                {declinedMatches.includes(selectedMatch.id) && (
+                {selectedInvite.status === 'declined' && (
                   <>
                     <XCircle className="w-6 h-6 text-red-500" />
                     <div>
                       <div className="text-red-500 font-bold">Convite Recusado</div>
-                      <div className="text-red-500/60 text-sm">Você recusou este desafio</div>
+                      <div className="text-red-500/60 text-sm">Este convite foi recusado</div>
                     </div>
                   </>
                 )}
-                {!acceptedMatches.includes(selectedMatch.id) && !declinedMatches.includes(selectedMatch.id) && (
+                {selectedInvite.status === 'pending' && (
                   <>
                     <AlertCircle className="w-6 h-6 text-yellow-500" />
                     <div>
                       <div className="text-yellow-500 font-bold">Aguardando Resposta</div>
-                      <div className="text-yellow-500/60 text-sm">Responda este convite para confirmar ou recusar</div>
+                      <div className="text-yellow-500/60 text-sm">
+                        {isReceivedInvite(selectedInvite) 
+                          ? 'Responda este convite para confirmar ou recusar'
+                          : 'Aguardando resposta do time adversário'
+                        }
+                      </div>
                     </div>
                   </>
                 )}
@@ -560,7 +623,7 @@ export default function ConvitesPage() {
                     </div>
                     <div>
                       <div className="text-white/60 text-xs">Data</div>
-                      <div className="text-white font-medium capitalize">{formatDate(selectedMatch.date)}</div>
+                      <div className="text-white font-medium capitalize">{formatDate(selectedInvite.proposed_date)}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -569,7 +632,7 @@ export default function ConvitesPage() {
                     </div>
                     <div>
                       <div className="text-white/60 text-xs">Horário</div>
-                      <div className="text-white font-medium">{selectedMatch.time}</div>
+                      <div className="text-white font-medium">{selectedInvite.proposed_time}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 sm:col-span-2">
@@ -578,7 +641,7 @@ export default function ConvitesPage() {
                     </div>
                     <div>
                       <div className="text-white/60 text-xs">Local</div>
-                      <div className="text-white font-medium">{selectedMatch.location}</div>
+                      <div className="text-white font-medium">{selectedInvite.proposed_location || 'A definir'}</div>
                     </div>
                   </div>
                 </div>
@@ -586,145 +649,44 @@ export default function ConvitesPage() {
                 {/* VS */}
                 <div className="mt-6 pt-6 border-t border-white/10 flex items-center justify-between">
                   <div className="text-center flex-1">
-                    <div className="text-3xl mb-2">{getTeamByName(selectedMatch.homeTeam)?.logo || '⚽'}</div>
-                    <div className="text-white font-bold">{selectedMatch.homeTeam}</div>
-                    <div className="text-white/40 text-xs">Casa</div>
+                    <div className="text-3xl mb-2">⚽</div>
+                    <div className="text-white font-bold">{selectedInvite.from_team_name}</div>
+                    <div className="text-white/40 text-xs">Desafiante</div>
                   </div>
                   <div className="px-6 py-3 bg-[#FF6B00]/10 rounded-xl">
                     <div className="text-[#FF6B00] font-bold text-xl">VS</div>
                   </div>
                   <div className="text-center flex-1">
-                    <div className="text-3xl mb-2">{getTeamByName(selectedMatch.awayTeam)?.logo || '⚽'}</div>
-                    <div className="text-white font-bold">{selectedMatch.awayTeam}</div>
-                    <div className="text-white/40 text-xs">Visitante</div>
+                    <div className="text-3xl mb-2">⚽</div>
+                    <div className="text-white font-bold">{selectedInvite.to_team_name}</div>
+                    <div className="text-white/40 text-xs">Desafiado</div>
                   </div>
                 </div>
               </div>
 
-              {/* Informações do Time que Enviou */}
-              {(() => {
-                const senderTeam = getTeamByName(selectedMatch.homeTeam);
-                if (!senderTeam) return null;
-                
-                return (
-                  <div className="bg-white/5 rounded-xl p-5">
-                    {/* Header com Logo e Nome */}
-                    <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
-                      <div className="w-16 h-16 bg-gradient-to-br from-[#FF6B00]/20 to-[#FF6B00]/5 rounded-xl flex items-center justify-center text-3xl border border-[#FF6B00]/20">
-                        {senderTeam.logo || '⚽'}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {senderTeam.name}
-                        </h3>
-                        {senderTeam.description && (
-                          <p className="text-white/60 text-sm mt-1">{senderTeam.description}</p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Informações do Time */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {senderTeam.president && (
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-[#FF6B00]/10 rounded-lg">
-                            <User className="w-4 h-4 text-[#FF6B00]" />
-                          </div>
-                          <div>
-                            <div className="text-white/60 text-xs">Presidente</div>
-                            <div className="text-white font-medium">{senderTeam.president}</div>
-                          </div>
-                        </div>
-                      )}
-                      {senderTeam.phone && (
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-[#FF6B00]/10 rounded-lg">
-                            <Phone className="w-4 h-4 text-[#FF6B00]" />
-                          </div>
-                          <div>
-                            <div className="text-white/60 text-xs">Contato</div>
-                            <div className="text-white font-medium">{senderTeam.phone}</div>
-                          </div>
-                        </div>
-                      )}
-                      {senderTeam.category && (
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-[#FF6B00]/10 rounded-lg">
-                            <Users className="w-4 h-4 text-[#FF6B00]" />
-                          </div>
-                          <div>
-                            <div className="text-white/60 text-xs">Categoria</div>
-                            <div className="text-white font-medium">{senderTeam.category}</div>
-                          </div>
-                        </div>
-                      )}
-                      {senderTeam.teamType && (
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-[#FF6B00]/10 rounded-lg">
-                            <Target className="w-4 h-4 text-[#FF6B00]" />
-                          </div>
-                          <div>
-                            <div className="text-white/60 text-xs">Tipo</div>
-                            <div className="text-white font-medium">{senderTeam.teamType}</div>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${senderTeam.hasVenue ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                          <MapPin className={`w-4 h-4 ${senderTeam.hasVenue ? 'text-green-500' : 'text-red-500'}`} />
-                        </div>
-                        <div>
-                          <div className="text-white/60 text-xs">Local Próprio</div>
-                          <div className={`font-medium ${senderTeam.hasVenue ? 'text-green-500' : 'text-red-500'}`}>
-                            {senderTeam.hasVenue ? 'Sim, possui local' : 'Não possui'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
+              {/* Mensagem do Convite */}
+              {selectedInvite.message && (
+                <div className="bg-white/5 rounded-xl p-5">
+                  <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5 text-[#FF6B00]" />
+                    Mensagem
+                  </h3>
+                  <p className="text-white/80">{selectedInvite.message}</p>
+                </div>
+              )}
 
-              {/* Foto do Elenco */}
-              {(() => {
-                const senderTeam = getTeamByName(selectedMatch.homeTeam);
-                if (!senderTeam) return null;
-                
-                // Foto do elenco baseada no ID do time
-                const elencoPhoto = getTeamElencoPhoto(senderTeam.id);
-                
-                return (
-                  <div className="bg-white/5 rounded-xl p-5">
-                    <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                      <Users className="w-5 h-5 text-[#FF6B00]" />
-                      Foto do Elenco
-                    </h3>
-                    <div className="aspect-video bg-white/10 rounded-xl overflow-hidden border border-[#FF6B00]/20">
-                      <img 
-                        src={elencoPhoto} 
-                        alt={`Elenco do ${senderTeam.name}`}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80';
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Ações */}
-              {!acceptedMatches.includes(selectedMatch.id) && !declinedMatches.includes(selectedMatch.id) && (
+              {/* Ações - apenas para convites recebidos pendentes */}
+              {isReceivedInvite(selectedInvite) && selectedInvite.status === 'pending' && (
                 <div className="flex gap-3 pt-4 border-t border-white/10">
                   <button 
-                    onClick={() => { handleAccept(selectedMatch.id); setSelectedMatch(null); }}
+                    onClick={() => handleAccept(selectedInvite.id)}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
                   >
                     <CheckCircle className="w-5 h-5" />
                     Aceitar Convite
                   </button>
                   <button 
-                    onClick={() => { handleDecline(selectedMatch.id); setSelectedMatch(null); }}
+                    onClick={() => handleDecline(selectedInvite.id)}
                     className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-500 font-bold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
                   >
                     <XCircle className="w-5 h-5" />
@@ -733,7 +695,7 @@ export default function ConvitesPage() {
                 </div>
               )}
 
-              {acceptedMatches.includes(selectedMatch.id) && (
+              {selectedInvite.status === 'accepted' && (
                 <div className="flex gap-3 pt-4 border-t border-white/10">
                   <Link 
                     href="/agenda" 
@@ -751,7 +713,7 @@ export default function ConvitesPage() {
       )}
 
       {/* Modal de Chat */}
-      {showChatModal && selectedMatch && (
+      {showChatModal && selectedInvite && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
           <div className="bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-2xl w-full max-w-lg h-[80vh] flex flex-col">
             {/* Header do Chat */}
@@ -761,7 +723,9 @@ export default function ConvitesPage() {
                   <MessageCircle className="w-5 h-5 text-[#FF6B00]" />
                 </div>
                 <div>
-                  <h3 className="text-white font-bold">Chat com {selectedMatch.homeTeam}</h3>
+                  <h3 className="text-white font-bold">
+                    Chat - {selectedInvite.from_team_name} vs {selectedInvite.to_team_name}
+                  </h3>
                   <p className="text-white/60 text-xs">Conversa sobre o convite</p>
                 </div>
               </div>
@@ -779,35 +743,40 @@ export default function ConvitesPage() {
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <MessageCircle className="w-16 h-16 text-white/20 mb-4" />
                   <p className="text-white/60 mb-2">Nenhuma mensagem ainda</p>
-                  <p className="text-white/40 text-sm">Inicie uma conversa com {selectedMatch.homeTeam}</p>
+                  <p className="text-white/40 text-sm">Inicie uma conversa sobre este convite</p>
                 </div>
               ) : (
                 <>
                   {chatMessages.map((msg, index) => {
-                    const showDate = index === 0 || 
-                      formatChatDate(msg.timestamp) !== formatChatDate(chatMessages[index - 1].timestamp);
+                    const isMyMessage = userTeamIds.includes(msg.sender_team_id);
+                    const msgDate = msg.created_at ? formatChatDate(msg.created_at) : '';
+                    const prevMsgDate = index > 0 && chatMessages[index - 1].created_at 
+                      ? formatChatDate(chatMessages[index - 1].created_at!) 
+                      : '';
+                    const showDate = index === 0 || msgDate !== prevMsgDate;
                     
                     return (
                       <div key={msg.id}>
-                        {showDate && (
+                        {showDate && msgDate && (
                           <div className="flex justify-center my-4">
                             <span className="bg-white/10 text-white/60 text-xs px-3 py-1 rounded-full">
-                              {formatChatDate(msg.timestamp)}
+                              {msgDate}
                             </span>
                           </div>
                         )}
-                        <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                            msg.sender === 'me'
+                            isMyMessage
                               ? 'bg-[#FF6B00] text-white rounded-br-md'
                               : 'bg-white/10 text-white rounded-bl-md'
                           }`}>
+                            <p className="text-xs font-medium mb-1 opacity-70">{msg.sender_name}</p>
                             <p className="text-sm">{msg.message}</p>
-                            <p className={`text-xs mt-1 ${
-                              msg.sender === 'me' ? 'text-white/70' : 'text-white/50'
-                            }`}>
-                              {formatChatTime(msg.timestamp)}
-                            </p>
+                            {msg.created_at && (
+                              <p className={`text-xs mt-1 ${isMyMessage ? 'text-white/70' : 'text-white/50'}`}>
+                                {formatChatTime(msg.created_at)}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -837,13 +806,6 @@ export default function ConvitesPage() {
                   <Send className="w-5 h-5" />
                 </button>
               </div>
-              {/* Botão para simular resposta (apenas para teste) */}
-              <button
-                onClick={simulateResponse}
-                className="w-full mt-2 text-white/40 hover:text-white/60 text-xs py-2 transition-colors"
-              >
-                🧪 Simular resposta do {selectedMatch.homeTeam}
-              </button>
             </div>
           </div>
         </div>

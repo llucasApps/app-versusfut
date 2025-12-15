@@ -193,7 +193,6 @@ export interface TeamAgendaSettings {
 
 export interface MatchInvite {
   id: string;
-  match_id?: string | null;
   from_team_id: string;
   from_team_name: string;
   to_team_id: string;
@@ -201,7 +200,21 @@ export interface MatchInvite {
   proposed_date: string;
   proposed_time: string;
   proposed_location?: string | null;
+  message?: string | null;
   status: 'pending' | 'accepted' | 'declined';
   created_at?: string;
   updated_at?: string;
+  // Campos expandidos (join)
+  from_team?: Team;
+  to_team?: Team;
+}
+
+export interface InviteMessage {
+  id: string;
+  invite_id: string;
+  sender_team_id: string;
+  sender_name: string;
+  message: string;
+  read_at?: string | null;
+  created_at?: string;
 }

@@ -1,11 +1,22 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { opponentTeams, allTeams, Team } from '@/lib/mock-data';
-import { Search, User, Phone, Tag, Calendar, X, ChevronLeft, ChevronRight, Clock, MessageSquare, Send, CheckCircle, Users, Image as ImageIcon, MapPin, Filter, RotateCcw } from 'lucide-react';
-import { useState } from 'react';
+import { supabase, Team, MatchInvite, TeamAvailableDate } from '@/lib/supabase';
+import { Search, User, Phone, Tag, Calendar, X, ChevronLeft, ChevronRight, Clock, MessageSquare, Send, CheckCircle, Users, Image as ImageIcon, MapPin, Filter, RotateCcw, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function BuscarPage() {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  
+  // Times
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [userTeams, setUserTeams] = useState<Team[]>([]);
+  const [selectedMyTeam, setSelectedMyTeam] = useState<string>('');
+  const [teamAvailableDates, setTeamAvailableDates] = useState<Record<string, string[]>>({});
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
@@ -28,6 +39,58 @@ export default function BuscarPage() {
   const categoryOptions = ['Juvenil', 'Adulto', 'Veterano 35+', 'Master 45+'];
   const teamTypeOptions = ['Campo', 'Society', 'Futsal'];
 
+  // Carregar times do Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      
+      // Carregar todos os times disponíveis para partidas
+      const { data: teamsData } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('available_for_match', true)
+        .order('name');
+
+      if (teamsData) {
+        setAllTeams(teamsData);
+      }
+
+      // Carregar times do usuário
+      if (user) {
+        const { data: myTeams } = await supabase
+          .from('teams')
+          .select('*')
+          .eq('owner_id', user.id)
+          .order('name');
+
+        if (myTeams && myTeams.length > 0) {
+          setUserTeams(myTeams);
+          setSelectedMyTeam(myTeams[0].id);
+        }
+      }
+
+      // Carregar datas disponíveis de todos os times
+      const { data: datesData } = await supabase
+        .from('team_available_dates')
+        .select('team_id, available_date');
+
+      if (datesData) {
+        const datesMap: Record<string, string[]> = {};
+        datesData.forEach(d => {
+          if (!datesMap[d.team_id]) {
+            datesMap[d.team_id] = [];
+          }
+          datesMap[d.team_id].push(d.available_date);
+        });
+        setTeamAvailableDates(datesMap);
+      }
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [user]);
+
   const clearFilters = () => {
     setSearchTerm('');
     setFilterDate('');
@@ -38,37 +101,24 @@ export default function BuscarPage() {
 
   const hasActiveFilters = searchTerm || filterDate || filterCategory || filterHasVenue !== 'all' || filterTeamType;
 
-  // Fotos de elenco simuladas (em produção viriam do backend)
+  // Fotos de elenco - placeholder
   const getTeamPhoto = (teamId: string) => {
-    // Simulando fotos de elenco para cada time
-    const photos: Record<string, string> = {
-      '4': 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
-      '5': 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800&q=80',
-      '6': 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=800&q=80',
-    };
-    return photos[teamId] || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80';
+    return 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80';
   };
 
   const openTeamPhotoModal = (team: Team) => {
     setTeamPhotoData({
       name: team.name,
-      logo: team.logo,
+      logo: team.logo || '⚽',
       photo: getTeamPhoto(team.id)
     });
     setShowTeamPhotoModal(true);
   };
 
-  // Datas disponíveis simuladas (em produção viriam do backend)
-  const getAvailableDates = (teamId: string) => {
-    // Simulando datas disponíveis para cada time
-    const today = new Date();
-    const dates: Date[] = [];
-    for (let i = 3; i < 30; i += 3) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      dates.push(date);
-    }
-    return dates;
+  // Datas disponíveis do Supabase
+  const getAvailableDates = (teamId: string): Date[] => {
+    const dates = teamAvailableDates[teamId] || [];
+    return dates.map(d => new Date(d + 'T00:00:00'));
   };
 
   const openCalendarModal = (team: Team) => {
@@ -87,8 +137,42 @@ export default function BuscarPage() {
     setMessage('');
   };
 
-  const handleMarcarJogo = () => {
-    if (!selectedDate || !selectedTime || !selectedTeam) return;
+  const handleMarcarJogo = async () => {
+    if (!selectedDate || !selectedTime || !selectedTeam || !selectedMyTeam) return;
+
+    setSending(true);
+    const myTeam = userTeams.find(t => t.id === selectedMyTeam);
+    
+    if (!myTeam) {
+      alert('Selecione um time para enviar o convite.');
+      setSending(false);
+      return;
+    }
+
+    // Formatar data para o banco
+    const dateStr = selectedDate.toISOString().split('T')[0];
+
+    const { error } = await supabase
+      .from('match_invites')
+      .insert({
+        from_team_id: myTeam.id,
+        from_team_name: myTeam.name,
+        to_team_id: selectedTeam.id,
+        to_team_name: selectedTeam.name,
+        proposed_date: dateStr,
+        proposed_time: selectedTime,
+        proposed_location: selectedTeam.has_venue ? 'Local do adversário' : null,
+        message: message || null,
+        status: 'pending'
+      });
+
+    setSending(false);
+
+    if (error) {
+      console.error('Erro ao enviar convite:', error);
+      alert('Erro ao enviar convite: ' + error.message);
+      return;
+    }
 
     const formattedDate = selectedDate.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -234,27 +318,39 @@ export default function BuscarPage() {
     );
   };
   
-  const filteredTeams = opponentTeams.filter(team => {
+  // Filtrar times (excluindo os times do próprio usuário)
+  const opponentTeams = allTeams.filter(team => !userTeams.some(ut => ut.id === team.id));
+  
+  const filteredTeams = opponentTeams.filter((team: Team) => {
     // Filtro por nome/descrição
     const matchesSearch = team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      team.description.toLowerCase().includes(searchTerm.toLowerCase());
+      (team.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     // Filtro por categoria
     const matchesCategory = !filterCategory || team.category === filterCategory;
     
     // Filtro por local próprio
     const matchesVenue = filterHasVenue === 'all' || 
-      (filterHasVenue === 'yes' && team.hasVenue) || 
-      (filterHasVenue === 'no' && !team.hasVenue);
+      (filterHasVenue === 'yes' && team.has_venue) || 
+      (filterHasVenue === 'no' && !team.has_venue);
     
     // Filtro por tipo de time
-    const matchesTeamType = !filterTeamType || team.teamType === filterTeamType;
+    const matchesTeamType = !filterTeamType || team.team_type === filterTeamType;
     
     // Filtro por data disponível
-    const matchesDate = !filterDate || (team.availableDates && team.availableDates.includes(filterDate));
+    const teamDates = teamAvailableDates[team.id] || [];
+    const matchesDate = !filterDate || teamDates.includes(filterDate);
     
     return matchesSearch && matchesCategory && matchesVenue && matchesTeamType && matchesDate;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#FF6B35] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0D0D0D]">
@@ -263,10 +359,40 @@ export default function BuscarPage() {
       <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-8 sm:mb-12">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Marcar Jogo
-          </h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Marcar Jogo
+            </h1>
+            
+            {/* Seletor do Meu Time */}
+            {userTeams.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-white/60 text-sm">Meu time:</span>
+                <select
+                  value={selectedMyTeam}
+                  onChange={(e) => setSelectedMyTeam(e.target.value)}
+                  className="bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-[#FF6B35]"
+                >
+                  {userTeams.map(team => (
+                    <option key={team.id} value={team.id} className="bg-[#1A1A1A]">
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           <p className="text-white/60 text-base sm:text-lg">Encontre times adversários e agende sua partida</p>
+          
+          {userTeams.length === 0 && (
+            <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-yellow-500" />
+              <p className="text-yellow-500 text-sm">
+                Você precisa criar um time primeiro para enviar convites.{' '}
+                <a href="/times" className="underline font-bold">Criar time</a>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Search & Filters */}
@@ -423,7 +549,13 @@ export default function BuscarPage() {
                 {/* Header */}
                 <div className="p-6 border-b border-white/10">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="text-5xl">{team.logo}</div>
+                    {team.logo && (team.logo.startsWith('http') || team.logo.startsWith('data:')) ? (
+                      <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-[#FF6B35]/20">
+                        <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="text-5xl">{team.logo || '⚽'}</div>
+                    )}
                     <button
                       onClick={() => openTeamPhotoModal(team)}
                       className="p-2 bg-[#FF6B35]/10 hover:bg-[#FF6B35]/20 rounded-full transition-all group relative"
@@ -479,36 +611,46 @@ export default function BuscarPage() {
 
                   {/* Disponibilidade */}
                   <div className="pt-4 border-t border-white/10">
-                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                      team.availableForMatch !== false
-                        ? 'bg-green-500/10 text-green-400'
-                        : 'bg-red-500/10 text-red-400'
-                    }`}>
-                      <Calendar className="w-5 h-5" />
-                      <span className="font-medium">
-                        {team.availableForMatch !== false 
-                          ? 'Datas disponíveis para agendar partida'
-                          : 'Sem datas disponíveis no momento'
-                        }
-                      </span>
-                    </div>
+                    {(() => {
+                      const hasAvailableDates = (teamAvailableDates[team.id] || []).length > 0;
+                      return (
+                        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
+                          hasAvailableDates
+                            ? 'bg-green-500/10 text-green-400'
+                            : 'bg-red-500/10 text-red-400'
+                        }`}>
+                          <Calendar className="w-5 h-5" />
+                          <span className="font-medium">
+                            {hasAvailableDates 
+                              ? `${teamAvailableDates[team.id].length} data(s) disponível(is)`
+                              : 'Sem datas disponíveis no momento'
+                            }
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
                 {/* Actions */}
                 <div className="p-6 pt-0">
-                  <button 
-                    onClick={() => openCalendarModal(team)}
-                    disabled={team.availableForMatch === false}
-                    className={`w-full font-bold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
-                      team.availableForMatch !== false
-                        ? 'bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white hover:shadow-[0_0_20px_rgba(255,107,53,0.3)]'
-                        : 'bg-white/10 text-white/40 cursor-not-allowed'
-                    }`}
-                  >
-                    <Calendar className="w-5 h-5" />
-                    Ver Calendário
-                  </button>
+                  {(() => {
+                    const hasAvailableDates = (teamAvailableDates[team.id] || []).length > 0;
+                    return (
+                      <button 
+                        onClick={() => openCalendarModal(team)}
+                        disabled={!hasAvailableDates}
+                        className={`w-full font-bold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
+                          hasAvailableDates
+                            ? 'bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white hover:shadow-[0_0_20px_rgba(255,107,53,0.3)]'
+                            : 'bg-white/10 text-white/40 cursor-not-allowed'
+                        }`}
+                      >
+                        <Calendar className="w-5 h-5" />
+                        Ver Calendário
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
@@ -533,7 +675,13 @@ export default function BuscarPage() {
             {/* Header do Modal */}
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="text-4xl">{selectedTeam.logo}</div>
+                {selectedTeam.logo && (selectedTeam.logo.startsWith('http') || selectedTeam.logo.startsWith('data:')) ? (
+                  <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-[#FF6B35]/20">
+                    <img src={selectedTeam.logo} alt={selectedTeam.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="text-4xl">{selectedTeam.logo || '⚽'}</div>
+                )}
                 <div>
                   <h3 className="text-xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     {selectedTeam.name}
@@ -599,18 +747,34 @@ export default function BuscarPage() {
                 />
               </div>
 
+              {/* Aviso se não tem time */}
+              {userTeams.length === 0 && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-yellow-500 text-sm">
+                  Você precisa criar um time primeiro para enviar convites.
+                </div>
+              )}
+
               {/* Botão Marcar Jogo */}
               <button
                 onClick={handleMarcarJogo}
-                disabled={!selectedDate || !selectedTime}
+                disabled={!selectedDate || !selectedTime || !selectedMyTeam || sending}
                 className={`w-full font-bold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
-                  selectedDate && selectedTime
+                  selectedDate && selectedTime && selectedMyTeam && !sending
                     ? 'bg-[#FF6B35] hover:bg-[#FF6B35]/90 text-white hover:shadow-[0_0_20px_rgba(255,107,53,0.3)]'
                     : 'bg-white/10 text-white/40 cursor-not-allowed'
                 }`}
               >
-                <Send className="w-5 h-5" />
-                Marcar Jogo
+                {sending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    Enviar Convite
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -637,7 +801,13 @@ export default function BuscarPage() {
 
             {/* Header */}
             <div className="flex items-center gap-4 mb-4">
-              <div className="text-4xl">{teamPhotoData.logo}</div>
+              {teamPhotoData.logo && (teamPhotoData.logo.startsWith('http') || teamPhotoData.logo.startsWith('data:')) ? (
+                <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-[#FF6B35]/20">
+                  <img src={teamPhotoData.logo} alt={teamPhotoData.name} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="text-4xl">{teamPhotoData.logo || '⚽'}</div>
+              )}
               <div>
                 <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   {teamPhotoData.name}

@@ -116,7 +116,7 @@ export default function TimesPage() {
                   {/* Header */}
                   <div className="p-6 border-b border-white/10">
                     <div className="flex items-start justify-between mb-4">
-                      {team.logo && team.logo.startsWith('http') ? (
+                      {team.logo && (team.logo.startsWith('http') || team.logo.startsWith('data:')) ? (
                         <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-[#FF6B00]/20">
                           <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
                         </div>

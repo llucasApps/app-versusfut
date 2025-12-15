@@ -42,17 +42,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Verificar sessão atual
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setProfile(profile);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Erro ao obter sessão:', error.message);
+          // Limpar tokens inválidos
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          const profile = await fetchProfile(session.user.id);
+          setProfile(profile);
+        }
+      } catch (err) {
+        console.error('Erro inesperado ao verificar sessão:', err);
+        // Limpar estado em caso de erro
+        await supabase.auth.signOut();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     getSession();
@@ -60,6 +80,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Escutar mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // Tratar erro de token inválido
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          // Token refresh falhou, limpar sessão
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
 

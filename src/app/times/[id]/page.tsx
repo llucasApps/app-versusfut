@@ -936,17 +936,23 @@ export default function TeamDetailPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-6">
             <div className="flex items-center gap-6">
               {/* Logo do Time */}
-              {(teamData?.logo && teamData.logo.startsWith('data:')) || (team.logo && team.logo.startsWith('http')) ? (
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
-                  <img 
-                    src={teamData?.logo || team.logo} 
-                    alt="Logo do time" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="text-6xl sm:text-7xl">{team.logo || '⚽'}</div>
-              )}
+              {(() => {
+                const logo = teamData?.logo || team.logo;
+                const isImageUrl = logo && (logo.startsWith('data:') || logo.startsWith('http'));
+                
+                if (isImageUrl) {
+                  return (
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
+                      <img 
+                        src={logo} 
+                        alt="Logo do time" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  );
+                }
+                return <div className="text-6xl sm:text-7xl">{logo || '⚽'}</div>;
+              })()}
               <div>
                 <div className="flex items-center gap-3 flex-wrap mb-2">
                   <h1 className="text-3xl sm:text-4xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
