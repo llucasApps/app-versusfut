@@ -17,6 +17,7 @@ export default function ConvitesPage() {
   const [userTeams, setUserTeams] = useState<Team[]>([]);
   const [allInvites, setAllInvites] = useState<MatchInvite[]>([]);
   const [chatMessages, setChatMessages] = useState<InviteMessage[]>([]);
+  const [lastMessages, setLastMessages] = useState<Record<string, InviteMessage>>({});
   
   const [showNotification, setShowNotification] = useState<string | null>(null);
   const [selectedInvite, setSelectedInvite] = useState<MatchInvite | null>(null);
@@ -56,6 +57,27 @@ export default function ConvitesPage() {
 
         if (invites) {
           setAllInvites(invites);
+          
+          // Buscar última mensagem de cada convite
+          const inviteIds = invites.map(inv => inv.id);
+          if (inviteIds.length > 0) {
+            const { data: messages } = await supabase
+              .from('invite_messages')
+              .select('*')
+              .in('invite_id', inviteIds)
+              .order('created_at', { ascending: false });
+
+            if (messages) {
+              // Agrupar por invite_id e pegar apenas a última (primeira do array ordenado desc)
+              const lastMsgs: Record<string, InviteMessage> = {};
+              messages.forEach(msg => {
+                if (!lastMsgs[msg.invite_id]) {
+                  lastMsgs[msg.invite_id] = msg;
+                }
+              });
+              setLastMessages(lastMsgs);
+            }
+          }
         }
       }
 
@@ -233,6 +255,11 @@ export default function ConvitesPage() {
 
     if (data) {
       setChatMessages(prev => [...prev, data]);
+      // Atualizar última mensagem do convite
+      setLastMessages(prev => ({
+        ...prev,
+        [selectedInvite.id]: data
+      }));
     }
     setNewMessage('');
 
@@ -464,8 +491,8 @@ export default function ConvitesPage() {
                   </div>
                 </div>
 
-                {/* Mensagem do convite - clicável para abrir chat */}
-                {invite.message && (
+                {/* Mensagem do convite - clicável para abrir chat (mostra última mensagem do chat) */}
+                {(lastMessages[invite.id] || invite.message) && (
                   <div 
                     className="bg-white/5 hover:bg-white/10 rounded-xl p-4 mb-4 cursor-pointer transition-colors"
                     onClick={(e) => { e.stopPropagation(); openChat(invite); }}
@@ -474,7 +501,11 @@ export default function ConvitesPage() {
                       <MessageCircle className="w-4 h-4 text-[#FF5A00] mt-0.5" />
                       <div className="flex-1">
                         <div className="text-white/60 text-xs mb-1">Mensagem</div>
-                        <div className="text-white text-sm">{invite.message}</div>
+                        <div className="text-white text-sm">
+                          {lastMessages[invite.id] 
+                            ? <><span className="text-[#FF5A00] font-medium">{lastMessages[invite.id].sender_name}:</span> {lastMessages[invite.id].message}</>
+                            : <><span className="text-[#FF5A00] font-medium">{invite.from_team_name}:</span> {invite.message}</>}
+                        </div>
                       </div>
                       <ArrowRight className="w-4 h-4 text-white/40" />
                     </div>
@@ -695,14 +726,22 @@ export default function ConvitesPage() {
                 </div>
               </div>
 
-              {/* Mensagem do Convite */}
-              {selectedInvite.message && (
-                <div className="bg-white/5 rounded-xl p-5">
+              {/* Mensagem do Convite (última mensagem do chat) */}
+              {(lastMessages[selectedInvite.id] || selectedInvite.message) && (
+                <div 
+                  className="bg-white/5 hover:bg-white/10 rounded-xl p-5 cursor-pointer transition-colors"
+                  onClick={() => openChat()}
+                >
                   <h3 className="text-white font-bold mb-4 flex items-center gap-2">
                     <MessageCircle className="w-5 h-5 text-[#FF6B00]" />
                     Mensagem
+                    <ArrowRight className="w-4 h-4 text-white/40 ml-auto" />
                   </h3>
-                  <p className="text-white/80">{selectedInvite.message}</p>
+                  <p className="text-white/80">
+                    {lastMessages[selectedInvite.id] 
+                      ? <><span className="text-[#FF5A00] font-medium">{lastMessages[selectedInvite.id].sender_name}:</span> {lastMessages[selectedInvite.id].message}</>
+                      : <><span className="text-[#FF5A00] font-medium">{selectedInvite.from_team_name}:</span> {selectedInvite.message}</>}
+                  </p>
                 </div>
               )}
 

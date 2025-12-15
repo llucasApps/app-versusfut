@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Users, Calendar, Search, Mail, Menu, X, Settings, LogOut } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
@@ -19,6 +20,46 @@ export default function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { signOut, user, profile } = useAuth();
+  const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
+
+  // Buscar contagem de convites pendentes
+  useEffect(() => {
+    const fetchPendingInvites = async () => {
+      if (!user) {
+        setPendingInvitesCount(0);
+        return;
+      }
+
+      // Buscar times do usuário
+      const { data: myTeams } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('owner_id', user.id);
+
+      if (!myTeams || myTeams.length === 0) {
+        setPendingInvitesCount(0);
+        return;
+      }
+
+      const teamIds = myTeams.map(t => t.id);
+
+      // Contar convites recebidos pendentes
+      const { count } = await supabase
+        .from('match_invites')
+        .select('*', { count: 'exact', head: true })
+        .in('to_team_id', teamIds)
+        .eq('status', 'pending');
+
+      setPendingInvitesCount(count || 0);
+    };
+
+    fetchPendingInvites();
+
+    // Atualizar a cada 30 segundos
+    const interval = setInterval(fetchPendingInvites, 30000);
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleLogout = async () => {
     await signOut();
@@ -45,12 +86,13 @@ export default function Navigation() {
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href;
+                  const showBadge = item.href === '/convites' && pendingInvitesCount > 0;
                   
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+                      className={`relative flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
                         isActive
                           ? 'bg-[#FF6B00]/10 text-[#FF6B00] shadow-[0_0_20px_rgba(255,107,0,0.2)]'
                           : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
@@ -58,6 +100,11 @@ export default function Navigation() {
                     >
                       <Icon className="w-5 h-5" />
                       <span className="font-medium">{item.label}</span>
+                      {showBadge && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
+                          {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -105,13 +152,14 @@ export default function Navigation() {
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
+                const showBadge = item.href === '/convites' && pendingInvitesCount > 0;
                 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
+                    className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
                       isActive
                         ? 'bg-[#FF6B00]/10 text-[#FF6B00] shadow-[0_0_20px_rgba(255,107,0,0.2)]'
                         : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
@@ -119,6 +167,11 @@ export default function Navigation() {
                   >
                     <Icon className="w-5 h-5" />
                     <span className="font-medium">{item.label}</span>
+                    {showBadge && (
+                      <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ml-auto">
+                        {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
