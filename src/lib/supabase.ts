@@ -239,8 +239,21 @@ export interface InternalMatch {
   location?: string | null;
   description?: string | null;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  started_at?: string | null;
+  ended_at?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface InternalMatchAttendance {
+  id: string;
+  internal_match_id: string;
+  player_id?: string | null;
+  guest_name?: string | null;
+  confirmed: boolean;
+  created_at?: string;
+  // Expandido
+  player?: Player;
 }
 
 export interface InternalMatchTeam {
@@ -256,18 +269,39 @@ export interface InternalMatchTeam {
 export interface InternalMatchTeamPlayer {
   id: string;
   internal_match_team_id: string;
-  player_id: string;
+  player_id?: string | null;
+  guest_name?: string | null;
+  attendance_id?: string | null;
   created_at?: string;
   // Expandido
   player?: Player;
 }
 
+export interface InternalMatchGame {
+  id: string;
+  internal_match_id: string;
+  team_a_id: string;
+  team_b_id: string;
+  score_a: number;
+  score_b: number;
+  game_order: number;
+  status: 'pending' | 'in_progress' | 'completed';
+  started_at?: string | null;
+  ended_at?: string | null;
+  created_at?: string;
+  // Expandido
+  team_a?: InternalMatchTeam;
+  team_b?: InternalMatchTeam;
+}
+
 export interface InternalMatchStats {
   id: string;
   internal_match_id: string;
-  player_id: string;
+  player_id?: string | null;
+  guest_name?: string | null;
   goals: number;
   assists: number;
+  game_id?: string | null;
   created_at?: string;
   // Expandido
   player?: Player;

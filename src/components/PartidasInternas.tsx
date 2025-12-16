@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { supabase, Player, InternalMatch, InternalMatchStats } from '@/lib/supabase';
-import { Plus, Trophy, Award, Shuffle, Calendar, MapPin, Clock, X, Check, Target, Users, Trash2, Edit, ChevronRight } from 'lucide-react';
+import { Plus, Trophy, Award, Shuffle, Calendar, MapPin, Clock, X, Check, Target, Users, Trash2, Edit, ChevronRight, Eye } from 'lucide-react';
+import PartidaInternaDetalhes from './PartidaInternaDetalhes';
 
 interface PartidasInternasProps {
   teamId: string;
@@ -44,15 +45,9 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
   const [sortedTeams, setSortedTeams] = useState<SortedTeam[]>([]);
   const [hasSorted, setHasSorted] = useState(false);
   
-  // Modal de detalhes da partida
-  const [showMatchDetailModal, setShowMatchDetailModal] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<InternalMatch | null>(null);
-  const [matchStats, setMatchStats] = useState<InternalMatchStats[]>([]);
-  
-  // Modal de registrar estatísticas
-  const [showStatsModal, setShowStatsModal] = useState(false);
-  const [statsMatch, setStatsMatch] = useState<InternalMatch | null>(null);
-  const [playerStats, setPlayerStats] = useState<{[playerId: string]: {goals: number, assists: number}}>({});
+  // Modal de detalhes da partida (novo componente completo)
+  const [showDetalhesModal, setShowDetalhesModal] = useState(false);
+  const [selectedMatchForDetails, setSelectedMatchForDetails] = useState<InternalMatch | null>(null);
 
   // Carregar partidas internas
   useEffect(() => {
@@ -93,11 +88,13 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
     const playerStatsMap: {[playerId: string]: {goals: number, assists: number}} = {};
     
     internalStats.forEach(stat => {
-      if (!playerStatsMap[stat.player_id]) {
-        playerStatsMap[stat.player_id] = { goals: 0, assists: 0 };
+      const playerId = stat.player_id;
+      if (!playerId) return;
+      if (!playerStatsMap[playerId]) {
+        playerStatsMap[playerId] = { goals: 0, assists: 0 };
       }
-      playerStatsMap[stat.player_id].goals += stat.goals;
-      playerStatsMap[stat.player_id].assists += stat.assists;
+      playerStatsMap[playerId].goals += stat.goals;
+      playerStatsMap[playerId].assists += stat.assists;
     });
     
     const playersWithStats: PlayerWithStats[] = players.map(p => ({
@@ -267,78 +264,6 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
     setSelectedPlayersForSort(availableIds);
   };
 
-  // Abrir modal de estatísticas
-  const openStatsModal = (match: InternalMatch) => {
-    setStatsMatch(match);
-    
-    // Carregar estatísticas existentes
-    const existingStats: {[playerId: string]: {goals: number, assists: number}} = {};
-    internalStats
-      .filter(s => s.internal_match_id === match.id)
-      .forEach(s => {
-        existingStats[s.player_id] = { goals: s.goals, assists: s.assists };
-      });
-    
-    // Inicializar todos os jogadores
-    players.forEach(p => {
-      if (!existingStats[p.id]) {
-        existingStats[p.id] = { goals: 0, assists: 0 };
-      }
-    });
-    
-    setPlayerStats(existingStats);
-    setShowStatsModal(true);
-  };
-
-  // Salvar estatísticas
-  const handleSaveStats = async () => {
-    if (!statsMatch) return;
-    
-    // Filtrar apenas jogadores com gols ou assistências
-    const statsToSave = Object.entries(playerStats)
-      .filter(([_, stats]) => stats.goals > 0 || stats.assists > 0)
-      .map(([playerId, stats]) => ({
-        internal_match_id: statsMatch.id,
-        player_id: playerId,
-        goals: stats.goals,
-        assists: stats.assists
-      }));
-    
-    // Deletar estatísticas antigas desta partida
-    await supabase
-      .from('internal_match_stats')
-      .delete()
-      .eq('internal_match_id', statsMatch.id);
-    
-    // Inserir novas estatísticas
-    if (statsToSave.length > 0) {
-      const { error } = await supabase
-        .from('internal_match_stats')
-        .insert(statsToSave);
-      
-      if (error) {
-        console.error('Erro ao salvar estatísticas:', error);
-        alert('Erro ao salvar estatísticas.');
-        return;
-      }
-    }
-    
-    // Atualizar estado local
-    const { data: newStats } = await supabase
-      .from('internal_match_stats')
-      .select('*')
-      .eq('internal_match_id', statsMatch.id);
-    
-    if (newStats) {
-      setInternalStats(prev => [
-        ...prev.filter(s => s.internal_match_id !== statsMatch.id),
-        ...newStats
-      ]);
-    }
-    
-    setShowStatsModal(false);
-    setStatsMatch(null);
-  };
 
   // Formatar data
   const formatDate = (dateStr: string) => {
@@ -493,11 +418,19 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
             {upcomingMatches.map(match => (
               <div 
                 key={match.id} 
-                className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-all"
+                className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
+                onClick={() => {
+                  setSelectedMatchForDetails(match);
+                  setShowDetalhesModal(true);
+                }}
               >
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-[#FF6B00]/20 rounded-xl">
-                    <Calendar className="w-6 h-6 text-[#FF6B00]" />
+                  <div className={`p-3 rounded-xl ${
+                    match.status === 'in_progress' ? 'bg-green-500/20' : 'bg-[#FF6B00]/20'
+                  }`}>
+                    <Calendar className={`w-6 h-6 ${
+                      match.status === 'in_progress' ? 'text-green-500' : 'text-[#FF6B00]'
+                    }`} />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
@@ -506,6 +439,11 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
                         <span className="text-white/60 text-sm flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {match.match_time.slice(0, 5)}
+                        </span>
+                      )}
+                      {match.status === 'in_progress' && (
+                        <span className="text-green-500 text-xs bg-green-500/20 px-2 py-0.5 rounded animate-pulse">
+                          Em Andamento
                         </span>
                       )}
                     </div>
@@ -520,24 +458,34 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
                     )}
                   </div>
                 </div>
-                {isOwnerMode && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleCompleteMatch(match.id)}
-                      className="p-2 text-green-500 hover:bg-green-500/20 rounded-lg transition-all"
-                      title="Marcar como concluída"
-                    >
-                      <Check className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleCancelMatch(match.id)}
-                      className="p-2 text-red-500 hover:bg-red-500/20 rounded-lg transition-all"
-                      title="Cancelar partida"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedMatchForDetails(match);
+                      setShowDetalhesModal(true);
+                    }}
+                    className="p-2 text-[#FF6B00] hover:bg-[#FF6B00]/20 rounded-lg transition-all"
+                    title="Ver detalhes"
+                  >
+                    <Eye className="w-5 h-5" />
+                  </button>
+                  {isOwnerMode && match.status === 'scheduled' && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCancelMatch(match.id);
+                        }}
+                        className="p-2 text-red-500 hover:bg-red-500/20 rounded-lg transition-all"
+                        title="Cancelar partida"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
+                  <ChevronRight className="w-5 h-5 text-white/40" />
+                </div>
               </div>
             ))}
           </div>
@@ -562,7 +510,10 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
                 <div 
                   key={match.id} 
                   className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
-                  onClick={() => isOwnerMode && openStatsModal(match)}
+                  onClick={() => {
+                    setSelectedMatchForDetails(match);
+                    setShowDetalhesModal(true);
+                  }}
                 >
                   <div className="flex items-center gap-4">
                     <div className="p-3 bg-green-500/20 rounded-xl">
@@ -586,18 +537,19 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
                       </p>
                     </div>
                   </div>
-                  {isOwnerMode && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openStatsModal(match);
-                        }}
-                        className="p-2 text-[#FF6B00] hover:bg-[#FF6B00]/20 rounded-lg transition-all"
-                        title="Editar estatísticas"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedMatchForDetails(match);
+                        setShowDetalhesModal(true);
+                      }}
+                      className="p-2 text-[#FF6B00] hover:bg-[#FF6B00]/20 rounded-lg transition-all"
+                      title="Ver detalhes"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+                    {isOwnerMode && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -608,9 +560,9 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
-                      <ChevronRight className="w-5 h-5 text-white/40" />
-                    </div>
-                  )}
+                    )}
+                    <ChevronRight className="w-5 h-5 text-white/40" />
+                  </div>
                 </div>
               );
             })}
@@ -839,85 +791,23 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
         </div>
       )}
 
-      {/* Modal Registrar Estatísticas */}
-      {showStatsModal && statsMatch && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1A1A] rounded-2xl p-6 w-full max-w-2xl border border-[#FF6B00]/20 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-xl font-bold text-white">Registrar Estatísticas</h3>
-                <p className="text-white/60 text-sm">{formatDate(statsMatch.match_date)}</p>
-              </div>
-              <button onClick={() => setShowStatsModal(false)} className="text-white/60 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <div className="space-y-3 mb-6">
-              <div className="grid grid-cols-[1fr,80px,80px] gap-2 text-white/60 text-sm font-medium px-2">
-                <span>Jogador</span>
-                <span className="text-center">Gols</span>
-                <span className="text-center">Assist.</span>
-              </div>
-              
-              {players.map(player => (
-                <div key={player.id} className="grid grid-cols-[1fr,80px,80px] gap-2 items-center p-2 bg-white/5 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    {player.foto ? (
-                      <img src={player.foto} alt={player.name} className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-[#FF6B00]/20 flex items-center justify-center text-[#FF6B00] text-xs font-bold">
-                        {player.name.charAt(0)}
-                      </div>
-                    )}
-                    <span className="text-white text-sm truncate">{player.name}</span>
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    value={playerStats[player.id]?.goals || 0}
-                    onChange={(e) => setPlayerStats({
-                      ...playerStats,
-                      [player.id]: {
-                        ...playerStats[player.id],
-                        goals: parseInt(e.target.value) || 0
-                      }
-                    })}
-                    className="w-full bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-white text-center focus:border-[#FF6B00] focus:outline-none"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    value={playerStats[player.id]?.assists || 0}
-                    onChange={(e) => setPlayerStats({
-                      ...playerStats,
-                      [player.id]: {
-                        ...playerStats[player.id],
-                        assists: parseInt(e.target.value) || 0
-                      }
-                    })}
-                    className="w-full bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-white text-center focus:border-[#FF6B00] focus:outline-none"
-                  />
-                </div>
-              ))}
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowStatsModal(false)}
-                className="flex-1 px-4 py-3 border border-white/20 text-white rounded-xl hover:bg-white/10 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveStats}
-                className="flex-1 px-4 py-3 bg-[#FF6B00] text-white rounded-xl hover:bg-[#FF6B00]/80 transition-all"
-              >
-                Salvar Estatísticas
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Modal de Detalhes da Partida */}
+      {showDetalhesModal && selectedMatchForDetails && (
+        <PartidaInternaDetalhes
+          match={selectedMatchForDetails}
+          players={players}
+          isOwnerMode={isOwnerMode}
+          onClose={() => {
+            setShowDetalhesModal(false);
+            setSelectedMatchForDetails(null);
+          }}
+          onUpdate={(updatedMatch) => {
+            setInternalMatches(internalMatches.map(m => 
+              m.id === updatedMatch.id ? updatedMatch : m
+            ));
+            setSelectedMatchForDetails(updatedMatch);
+          }}
+        />
       )}
     </div>
   );
