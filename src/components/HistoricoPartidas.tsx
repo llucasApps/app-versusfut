@@ -98,14 +98,18 @@ export default function HistoricoPartidas({ teamId, players }: HistoricoPartidas
     return { stats, totalGoals, totalAssists, topScorer, topAssister };
   };
 
-  // Obter nome do jogador
-  const getPlayerName = (playerId: string) => {
-    const player = players.find(p => p.id === playerId);
-    return player?.name || 'Jogador';
+  // Obter nome do jogador ou convidado
+  const getPlayerName = (playerId: string | null | undefined, guestName?: string | null) => {
+    if (playerId) {
+      const player = players.find(p => p.id === playerId);
+      return player?.name || 'Jogador';
+    }
+    return guestName || 'Jogador';
   };
 
   // Obter foto do jogador
-  const getPlayerPhoto = (playerId: string) => {
+  const getPlayerPhoto = (playerId: string | null | undefined) => {
+    if (!playerId) return null;
     const player = players.find(p => p.id === playerId);
     return player?.foto;
   };
@@ -273,11 +277,11 @@ export default function HistoricoPartidas({ teamId, players }: HistoricoPartidas
                                     />
                                   ) : (
                                     <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500 text-xs font-bold">
-                                      {getPlayerName(topScorer.player_id).charAt(0)}
+                                      {getPlayerName(topScorer.player_id, topScorer.guest_name).charAt(0)}
                                     </div>
                                   )}
                                   <div>
-                                    <p className="text-white text-sm">{getPlayerName(topScorer.player_id)}</p>
+                                    <p className="text-white text-sm">{getPlayerName(topScorer.player_id, topScorer.guest_name)}</p>
                                     <p className="text-yellow-500 text-xs">{topScorer.goals} gols</p>
                                   </div>
                                 </div>
@@ -298,11 +302,11 @@ export default function HistoricoPartidas({ teamId, players }: HistoricoPartidas
                                     />
                                   ) : (
                                     <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-500 text-xs font-bold">
-                                      {getPlayerName(topAssister.player_id).charAt(0)}
+                                      {getPlayerName(topAssister.player_id, topAssister.guest_name).charAt(0)}
                                     </div>
                                   )}
                                   <div>
-                                    <p className="text-white text-sm">{getPlayerName(topAssister.player_id)}</p>
+                                    <p className="text-white text-sm">{getPlayerName(topAssister.player_id, topAssister.guest_name)}</p>
                                     <p className="text-blue-500 text-xs">{topAssister.assists} assist.</p>
                                   </div>
                                 </div>
@@ -327,11 +331,11 @@ export default function HistoricoPartidas({ teamId, players }: HistoricoPartidas
                                       />
                                     ) : (
                                       <div className="w-6 h-6 rounded-full bg-[#FF6B00]/20 flex items-center justify-center text-[#FF6B00] text-xs font-bold">
-                                        {getPlayerName(stat.player_id).charAt(0)}
+                                        {getPlayerName(stat.player_id, stat.guest_name).charAt(0)}
                                       </div>
                                     )}
                                     <span className="text-white text-xs flex-1 truncate">
-                                      {getPlayerName(stat.player_id)}
+                                      {getPlayerName(stat.player_id, stat.guest_name)}
                                     </span>
                                     <div className="flex gap-2 text-xs">
                                       {stat.goals > 0 && (

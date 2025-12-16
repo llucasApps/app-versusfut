@@ -16,6 +16,14 @@ interface PlayerWithStats extends Player {
   internal_assists: number;
 }
 
+interface RankingPlayer {
+  id: string;
+  name: string;
+  foto: string | null;
+  internal_goals: number;
+  internal_assists: number;
+}
+
 interface SortedTeam {
   name: string;
   color: string;
@@ -86,29 +94,52 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
   // Calcular ranking de artilheiros e garçons internos
   const getInternalRanking = () => {
     const playerStatsMap: {[playerId: string]: {goals: number, assists: number}} = {};
+    const guestStatsMap: {[guestName: string]: {goals: number, assists: number}} = {};
     
     internalStats.forEach(stat => {
-      const playerId = stat.player_id;
-      if (!playerId) return;
-      if (!playerStatsMap[playerId]) {
-        playerStatsMap[playerId] = { goals: 0, assists: 0 };
+      if (stat.player_id) {
+        // Jogador do elenco
+        if (!playerStatsMap[stat.player_id]) {
+          playerStatsMap[stat.player_id] = { goals: 0, assists: 0 };
+        }
+        playerStatsMap[stat.player_id].goals += stat.goals;
+        playerStatsMap[stat.player_id].assists += stat.assists;
+      } else if (stat.guest_name) {
+        // Convidado
+        if (!guestStatsMap[stat.guest_name]) {
+          guestStatsMap[stat.guest_name] = { goals: 0, assists: 0 };
+        }
+        guestStatsMap[stat.guest_name].goals += stat.goals;
+        guestStatsMap[stat.guest_name].assists += stat.assists;
       }
-      playerStatsMap[playerId].goals += stat.goals;
-      playerStatsMap[playerId].assists += stat.assists;
     });
     
-    const playersWithStats: PlayerWithStats[] = players.map(p => ({
-      ...p,
+    // Jogadores do elenco com stats
+    const playersWithStats: RankingPlayer[] = players.map(p => ({
+      id: p.id,
+      name: p.name,
+      foto: p.foto || null,
       internal_goals: playerStatsMap[p.id]?.goals || 0,
       internal_assists: playerStatsMap[p.id]?.assists || 0
     }));
     
-    const topScorers = [...playersWithStats]
+    // Convidados como "jogadores virtuais" para o ranking
+    const guestsWithStats: RankingPlayer[] = Object.entries(guestStatsMap).map(([guestName, stats]) => ({
+      id: `guest_${guestName}`,
+      name: guestName,
+      foto: null,
+      internal_goals: stats.goals,
+      internal_assists: stats.assists
+    }));
+    
+    const allWithStats: RankingPlayer[] = [...playersWithStats, ...guestsWithStats];
+    
+    const topScorers = [...allWithStats]
       .filter(p => p.internal_goals > 0)
       .sort((a, b) => b.internal_goals - a.internal_goals)
       .slice(0, 5);
     
-    const topAssisters = [...playersWithStats]
+    const topAssisters = [...allWithStats]
       .filter(p => p.internal_assists > 0)
       .sort((a, b) => b.internal_assists - a.internal_assists)
       .slice(0, 5);
