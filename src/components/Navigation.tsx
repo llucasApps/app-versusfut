@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Calendar, Search, Mail, Menu, X, Settings, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Home, Users, Calendar, Swords, Menu, X, Settings, LogOut, ChevronDown, Users2, Target } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
@@ -11,16 +11,35 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
   { href: '/times', label: 'Meus Times', icon: Users },
   { href: '/agenda', label: 'Agenda', icon: Calendar },
-  { href: '/buscar', label: 'Marcar Jogo', icon: Search },
-  { href: '/convites', label: 'Convites', icon: Mail },
-  { href: '/configuracoes', label: 'Configurações', icon: Settings },
+];
+
+const partidasSubmenu = [
+  { href: '/partidas/interna', label: 'Partida Interna', icon: Users2, description: 'Peladas entre jogadores do time' },
+  { href: '/partidas/adversario', label: 'Partida contra Adversário', icon: Target, description: 'Marcar jogos e convites' },
 ];
 
 export default function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [partidasMenuOpen, setPartidasMenuOpen] = useState(false);
+  const [mobilePartidasOpen, setMobilePartidasOpen] = useState(false);
+  const partidasMenuRef = useRef<HTMLDivElement>(null);
   const { signOut, user, profile } = useAuth();
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
+
+  // Fechar menu de partidas ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (partidasMenuRef.current && !partidasMenuRef.current.contains(event.target as Node)) {
+        setPartidasMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Verificar se está em uma página de partidas
+  const isPartidasActive = pathname.startsWith('/partidas');
 
   // Buscar contagem de convites pendentes
   useEffect(() => {
@@ -86,7 +105,6 @@ export default function Navigation() {
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href;
-                  const showBadge = item.href === '/convites' && pendingInvitesCount > 0;
                   
                   return (
                     <Link
@@ -100,14 +118,80 @@ export default function Navigation() {
                     >
                       <Icon className="w-4 h-4" />
                       <span className="font-medium text-sm">{item.label}</span>
-                      {showBadge && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
-                          {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
-                        </span>
-                      )}
                     </Link>
                   );
                 })}
+
+                {/* Partidas Dropdown */}
+                <div className="relative" ref={partidasMenuRef}>
+                  <button
+                    onClick={() => setPartidasMenuOpen(!partidasMenuOpen)}
+                    className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-300 ${
+                      isPartidasActive
+                        ? 'bg-[#FF6B00]/10 text-[#FF6B00] shadow-[0_0_20px_rgba(255,107,0,0.2)]'
+                        : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
+                    }`}
+                  >
+                    <Swords className="w-4 h-4" />
+                    <span className="font-medium text-sm">Partidas</span>
+                    <ChevronDown className={`w-3 h-3 transition-transform ${partidasMenuOpen ? 'rotate-180' : ''}`} />
+                    {pendingInvitesCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
+                        {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {partidasMenuOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-64 bg-[#1A1A1A] border border-[#FF6B00]/20 rounded-xl shadow-2xl overflow-hidden">
+                      {partidasSubmenu.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
+                        const showBadge = item.href === '/partidas/adversario' && pendingInvitesCount > 0;
+                        
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setPartidasMenuOpen(false)}
+                            className={`flex items-start gap-3 px-4 py-3 transition-all ${
+                              isActive
+                                ? 'bg-[#FF6B00]/10 text-[#FF6B00]'
+                                : 'text-white/70 hover:bg-[#FF6B00]/5 hover:text-[#FF6B00]'
+                            }`}
+                          >
+                            <Icon className="w-5 h-5 mt-0.5" />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm">{item.label}</span>
+                                {showBadge && (
+                                  <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-4 flex items-center justify-center px-1">
+                                    {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-white/40 mt-0.5">{item.description}</p>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Configurações */}
+                <Link
+                  href="/configuracoes"
+                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-300 ${
+                    pathname === '/configuracoes'
+                      ? 'bg-[#FF6B00]/10 text-[#FF6B00] shadow-[0_0_20px_rgba(255,107,0,0.2)]'
+                      : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
+                  }`}
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="font-medium text-sm">Configurações</span>
+                </Link>
 
                 {/* Logout Button */}
                 <button
@@ -148,11 +232,10 @@ export default function Navigation() {
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="absolute top-full left-0 right-0 bg-[#0D0D0D] border-b border-[#FF6B00]/10 shadow-2xl">
-            <div className="px-4 py-3 space-y-3">
+            <div className="px-4 py-3 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
-                const showBadge = item.href === '/convites' && pendingInvitesCount > 0;
                 
                 return (
                   <Link
@@ -167,14 +250,80 @@ export default function Navigation() {
                   >
                     <Icon className="w-5 h-5" />
                     <span className="font-medium">{item.label}</span>
-                    {showBadge && (
-                      <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ml-auto">
-                        {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
-                      </span>
-                    )}
                   </Link>
                 );
               })}
+
+              {/* Partidas Accordion Mobile */}
+              <div>
+                <button
+                  onClick={() => setMobilePartidasOpen(!mobilePartidasOpen)}
+                  className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
+                    isPartidasActive
+                      ? 'bg-[#FF6B00]/10 text-[#FF6B00]'
+                      : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Swords className="w-5 h-5" />
+                    <span className="font-medium">Partidas</span>
+                    {pendingInvitesCount > 0 && (
+                      <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                        {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${mobilePartidasOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {mobilePartidasOpen && (
+                  <div className="ml-4 mt-1 space-y-1 border-l-2 border-[#FF6B00]/20 pl-4">
+                    {partidasSubmenu.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = pathname === item.href;
+                      const showBadge = item.href === '/partidas/adversario' && pendingInvitesCount > 0;
+                      
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => {
+                            setMobileMenuOpen(false);
+                            setMobilePartidasOpen(false);
+                          }}
+                          className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${
+                            isActive
+                              ? 'bg-[#FF6B00]/10 text-[#FF6B00]'
+                              : 'text-white/60 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="text-sm">{item.label}</span>
+                          {showBadge && (
+                            <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 ml-auto">
+                              {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Configurações Mobile */}
+              <Link
+                href="/configuracoes"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
+                  pathname === '/configuracoes'
+                    ? 'bg-[#FF6B00]/10 text-[#FF6B00] shadow-[0_0_20px_rgba(255,107,0,0.2)]'
+                    : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
+                }`}
+              >
+                <Settings className="w-5 h-5" />
+                <span className="font-medium">Configurações</span>
+              </Link>
 
               {/* Logout Button Mobile */}
               <button
@@ -182,7 +331,7 @@ export default function Navigation() {
                   setMobileMenuOpen(false);
                   handleLogout();
                 }}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 text-white/70 hover:text-red-500 hover:bg-red-500/10"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 text-white/70 hover:text-red-500 hover:bg-red-500/10"
               >
                 <LogOut className="w-5 h-5" />
                 <span className="font-medium">Sair</span>

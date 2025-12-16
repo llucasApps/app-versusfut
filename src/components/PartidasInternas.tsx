@@ -75,14 +75,21 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
         setInternalMatches(matchesData || []);
       }
       
-      // Buscar estatísticas
-      const { data: statsData, error: statsError } = await supabase
-        .from('internal_match_stats')
-        .select('*')
-        .in('internal_match_id', (matchesData || []).map(m => m.id));
-      
-      if (!statsError && statsData) {
-        setInternalStats(statsData);
+      // Buscar estatísticas (só se houver partidas)
+      const matchIds = (matchesData || []).map(m => m.id);
+      if (matchIds.length > 0) {
+        const { data: statsData, error: statsError } = await supabase
+          .from('internal_match_stats')
+          .select('*')
+          .in('internal_match_id', matchIds);
+        
+        if (!statsError && statsData) {
+          setInternalStats(statsData);
+        } else {
+          console.error('Erro ao buscar estatísticas:', statsError);
+        }
+      } else {
+        setInternalStats([]);
       }
       
       setLoading(false);
@@ -368,8 +375,8 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
           ) : (
             <div className="text-center py-8 text-white/40">
               <Target className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhuma partida interna registrada</p>
-              <p className="text-sm">Agende uma partida para começar</p>
+              <p>Nenhum gol registrado</p>
+              <p className="text-sm">Os gols aparecerão aqui após as partidas</p>
             </div>
           )}
         </div>
