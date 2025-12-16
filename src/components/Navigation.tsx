@@ -80,9 +80,9 @@ export default function Navigation() {
               </div>
             </Link>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               {/* Navigation Items */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href;
@@ -92,14 +92,14 @@ export default function Navigation() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`relative flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+                      className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-300 ${
                         isActive
                           ? 'bg-[#FF6B00]/10 text-[#FF6B00] shadow-[0_0_20px_rgba(255,107,0,0.2)]'
                           : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
                       }`}
                     >
-                      <Icon className="w-5 h-5" />
-                      <span className="font-medium">{item.label}</span>
+                      <Icon className="w-4 h-4" />
+                      <span className="font-medium text-sm">{item.label}</span>
                       {showBadge && (
                         <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
                           {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
@@ -112,10 +112,10 @@ export default function Navigation() {
                 {/* Logout Button */}
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 text-white/70 hover:text-red-500 hover:bg-red-500/10"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-300 text-white/70 hover:text-red-500 hover:bg-red-500/10"
                   title="Sair"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <LogOut className="w-4 h-4" />
                 </button>
               </div>
             </div>

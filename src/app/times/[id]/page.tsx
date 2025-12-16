@@ -1,8 +1,10 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus, Loader2, Swords, History, Shuffle, Award } from 'lucide-react';
 import { Player, PhotoFolder, TeamPhoto, VideoFolder, VideoTutorial } from '@/lib/supabase';
+import PartidasInternas from '@/components/PartidasInternas';
+import HistoricoPartidas from '@/components/HistoricoPartidas';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -11,7 +13,7 @@ import { useViewMode } from '@/hooks/useViewMode';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Team } from '@/lib/supabase';
 
-type Tab = 'resumo' | 'elenco' | 'taticas' | 'fotos' | 'videos';
+type Tab = 'resumo' | 'elenco' | 'partidas-internas' | 'historico' | 'taticas' | 'fotos' | 'videos';
 
 const categorias = ['Finalização', 'Tática', 'Preparação Física', 'Passe', 'Defesa', 'Drible'];
 
@@ -1042,6 +1044,26 @@ export default function TeamDetailPage() {
             Elenco
           </button>
           <button
+            onClick={() => setActiveTab('partidas-internas')}
+            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+              activeTab === 'partidas-internas'
+                ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            Partidas Internas
+          </button>
+          <button
+            onClick={() => setActiveTab('historico')}
+            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+              activeTab === 'historico'
+                ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            Histórico
+          </button>
+          <button
             onClick={() => setActiveTab('taticas')}
             className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
               activeTab === 'taticas'
@@ -1476,6 +1498,23 @@ export default function TeamDetailPage() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Partidas Internas */}
+        {activeTab === 'partidas-internas' && (
+          <PartidasInternas 
+            teamId={team.id} 
+            players={customPlayers} 
+            isOwnerMode={isOwnerMode} 
+          />
+        )}
+
+        {/* Histórico de Jogos */}
+        {activeTab === 'historico' && (
+          <HistoricoPartidas 
+            teamId={team.id} 
+            players={customPlayers} 
+          />
         )}
 
         {activeTab === 'taticas' && (

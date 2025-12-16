@@ -1,7 +1,9 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { Settings, User, Moon, Sun, Bell, BellOff, Shield } from 'lucide-react';
+import { supabase, UserSettings } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { Settings, User, Moon, Sun, Bell, BellOff, Shield, Loader2, Save, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface UserConfig {
@@ -12,48 +14,107 @@ interface UserConfig {
 }
 
 export default function ConfiguracoesPage() {
+  const { user, profile } = useAuth();
   const [config, setConfig] = useState<UserConfig>({
-    displayName: 'Rafael Jr – Presidente Real Cohab',
+    displayName: '',
     darkMode: true,
     notifications: true,
     viewMode: 'owner'
   });
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
+  // Carregar configurações do Supabase
   useEffect(() => {
     setMounted(true);
     
-    // Carregar configurações do localStorage
-    const savedConfig = localStorage.getItem('userConfig');
-    const savedViewMode = localStorage.getItem('viewMode') as 'owner' | 'player' | null;
-    
-    if (savedConfig) {
-      const parsedConfig = JSON.parse(savedConfig);
-      // Sincronizar viewMode do localStorage separado
-      if (savedViewMode) {
-        parsedConfig.viewMode = savedViewMode;
+    const fetchSettings = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
       }
-      setConfig(parsedConfig);
-    } else {
-      // Salvar configuração padrão
-      localStorage.setItem('userConfig', JSON.stringify(config));
-    }
-  }, []);
 
-  const handleConfigChange = (key: keyof UserConfig, value: string | boolean) => {
+      // Buscar configurações do usuário
+      const { data: settings, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 = no rows returned (usuário novo)
+        console.error('Erro ao buscar configurações:', error);
+      }
+
+      if (settings) {
+        setConfig({
+          displayName: settings.display_name || profile?.name || '',
+          darkMode: settings.dark_mode ?? true,
+          notifications: settings.notifications ?? true,
+          viewMode: settings.view_mode || 'owner'
+        });
+        // Sincronizar localStorage para componentes que dependem dele
+        localStorage.setItem('viewMode', settings.view_mode || 'owner');
+      } else {
+        // Usuário novo - usar dados do perfil
+        setConfig(prev => ({
+          ...prev,
+          displayName: profile?.name || ''
+        }));
+      }
+
+      setLoading(false);
+    };
+
+    fetchSettings();
+  }, [user, profile]);
+
+  const handleConfigChange = async (key: keyof UserConfig, value: string | boolean) => {
     const newConfig = { ...config, [key]: value };
     setConfig(newConfig);
-    localStorage.setItem('userConfig', JSON.stringify(newConfig));
     
-    // Se for mudança de viewMode, salvar também separadamente e disparar evento
+    // Se for mudança de viewMode, salvar também no localStorage e disparar evento
     if (key === 'viewMode') {
       localStorage.setItem('viewMode', value as string);
       window.dispatchEvent(new CustomEvent('viewModeChange', { detail: value }));
     }
+
+    // Salvar no Supabase
+    if (user) {
+      setSaving(true);
+      
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          display_name: newConfig.displayName,
+          dark_mode: newConfig.darkMode,
+          notifications: newConfig.notifications,
+          view_mode: newConfig.viewMode,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) {
+        console.error('Erro ao salvar configurações:', error);
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+      
+      setSaving(false);
+    }
   };
 
-  if (!mounted) {
-    return null;
+  if (!mounted || loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#FF6B00] animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -63,16 +124,37 @@ export default function ConfiguracoesPage() {
       <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-8 sm:mb-12">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-4 bg-[#FF6B00]/10 rounded-2xl">
-              <Settings className="w-8 h-8 text-[#FF6B00]" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-4 bg-[#FF6B00]/10 rounded-2xl">
+                <Settings className="w-8 h-8 text-[#FF6B00]" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Configurações
+                </h1>
+                <p className="text-white/60 text-base sm:text-lg">Personalize sua experiência no VersusFut</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Configurações
-              </h1>
-              <p className="text-white/60 text-base sm:text-lg">Personalize sua experiência no VersusFut</p>
-            </div>
+            
+            {/* Indicador de salvamento */}
+            {(saving || saved) && (
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                saved ? 'bg-green-500/20 text-green-500' : 'bg-[#FF6B00]/20 text-[#FF6B00]'
+              }`}>
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm font-medium">Salvando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span className="text-sm font-medium">Salvo!</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

@@ -218,3 +218,57 @@ export interface InviteMessage {
   read_at?: string | null;
   created_at?: string;
 }
+
+export interface UserSettings {
+  id: string;
+  user_id: string;
+  display_name: string;
+  dark_mode: boolean;
+  notifications: boolean;
+  view_mode: 'owner' | 'player';
+  settings_created_at?: string;
+  settings_updated_at?: string;
+}
+
+// Partidas Internas
+export interface InternalMatch {
+  id: string;
+  team_id: string;
+  match_date: string;
+  match_time?: string | null;
+  location?: string | null;
+  description?: string | null;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InternalMatchTeam {
+  id: string;
+  internal_match_id: string;
+  team_name: string;
+  team_color?: string | null;
+  created_at?: string;
+  // Expandido
+  players?: InternalMatchTeamPlayer[];
+}
+
+export interface InternalMatchTeamPlayer {
+  id: string;
+  internal_match_team_id: string;
+  player_id: string;
+  created_at?: string;
+  // Expandido
+  player?: Player;
+}
+
+export interface InternalMatchStats {
+  id: string;
+  internal_match_id: string;
+  player_id: string;
+  goals: number;
+  assists: number;
+  created_at?: string;
+  // Expandido
+  player?: Player;
+}

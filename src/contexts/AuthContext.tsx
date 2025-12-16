@@ -39,6 +39,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data as Profile;
   };
 
+  // Função para limpar sessão inválida
+  const clearInvalidSession = async () => {
+    // Limpar localStorage do Supabase
+    if (typeof window !== 'undefined') {
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('sb-') && key.includes('-auth-token')) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
+  };
+
   useEffect(() => {
     let isMounted = true;
     
@@ -48,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('Timeout ao carregar sessão, resetando estado');
         setLoading(false);
       }
-    }, 5000); // 5 segundos de timeout
+    }, 5000);
 
     // Verificar sessão atual
     const getSession = async () => {
@@ -59,6 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           console.error('Erro ao obter sessão:', error.message);
+          
+          // Verificar se é erro de refresh token inválido
+          if (error.message?.includes('Refresh Token') || error.message?.includes('refresh_token')) {
+            console.warn('Refresh token inválido, limpando sessão...');
+            await clearInvalidSession();
+            return;
+          }
+          
           // Limpar tokens inválidos silenciosamente
           try {
             await supabase.auth.signOut();
@@ -81,9 +106,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setProfile(profile);
           }
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('Erro inesperado ao verificar sessão:', err);
         if (!isMounted) return;
+        
+        // Verificar se é erro de refresh token
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (errorMessage?.includes('Refresh Token') || errorMessage?.includes('refresh_token')) {
+          console.warn('Refresh token inválido (catch), limpando sessão...');
+          await clearInvalidSession();
+          return;
+        }
+        
         // Limpar estado em caso de erro
         try {
           await supabase.auth.signOut();
@@ -107,13 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, session) => {
         if (!isMounted) return;
         
+        console.log('Auth event:', event);
+        
         // Tratar erro de token inválido
         if (event === 'TOKEN_REFRESHED' && !session) {
-          // Token refresh falhou, limpar sessão
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
+          console.warn('Token refresh falhou, limpando sessão...');
+          await clearInvalidSession();
           return;
         }
 
