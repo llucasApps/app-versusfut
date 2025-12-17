@@ -1398,7 +1398,7 @@ export default function TeamDetailPage() {
 
               {/* Top Players */}
               <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
-                <h3 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <h3 className="text-xl font-bold text-center text-white mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   Artilheiros
                 </h3>
                 
@@ -1425,6 +1425,7 @@ export default function TeamDetailPage() {
                     <p className="text-white/40 text-sm text-center py-4">Nenhum jogador cadastrado</p>
                   )}
                 </div>
+                <i><p className="text-white/40 text-xs text-left mt-3">* Em partidas oficiais</p></i>
               </div>
             </div>
           </div>
