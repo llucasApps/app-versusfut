@@ -424,7 +424,7 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
       </div>
 
       {/* Sorteador de Times */}
-      <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+      {/* <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-[#FF6B00]/20 rounded-lg">
             <Shuffle className="w-6 h-6 text-[#FF6B00]" />
@@ -446,7 +446,7 @@ export default function PartidasInternas({ teamId, players, isOwnerMode }: Parti
           <Shuffle className="w-5 h-5" />
           Sortear Times
         </button>
-      </div>
+      </div> */}
 
       {/* Lista de Partidas Agendadas */}
       <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">

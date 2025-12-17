@@ -1,18 +1,22 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
-import { supabase, Match, Team, TeamAvailableDate, TeamAgendaSettings } from '@/lib/supabase';
-import { Calendar, Clock, MapPin, Filter, CheckCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare, X, User, Upload, Trophy, Loader2 } from 'lucide-react';
+import PartidaInternaDetalhes from '@/components/PartidaInternaDetalhes';
+import { supabase, Match, Team, TeamAvailableDate, TeamAgendaSettings, InternalMatch, Player } from '@/lib/supabase';
+import { Calendar, Clock, MapPin, Filter, CheckCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare, X, User, Upload, Trophy, Loader2, Play } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Tipo estendido para incluir tipo de partida
-type AgendaMatch = Match & { match_type?: 'interna' | 'adversario' };
+// Tipo estendido para incluir tipo de partida e status in_progress
+type AgendaMatch = Omit<Match, 'status'> & { 
+  match_type?: 'interna' | 'adversario';
+  status: Match['status'] | 'in_progress';
+};
 
 export default function AgendaPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'matches' | 'settings'>('matches');
-  const [filter, setFilter] = useState<'confirmed' | 'completed'>('confirmed');
+  const [filter, setFilter] = useState<'confirmed' | 'in_progress' | 'completed'>('confirmed');
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -32,7 +36,7 @@ export default function AgendaPage() {
   const [savingConfig, setSavingConfig] = useState(false);
   
   // Estado para modal de detalhes da partida
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<AgendaMatch | null>(null);
   
   // Estados para edição de jogo finalizado
   const [editingScore, setEditingScore] = useState(false);
@@ -40,7 +44,10 @@ export default function AgendaPage() {
   const [scoreAway, setScoreAway] = useState('');
   const [highlightPlayer, setHighlightPlayer] = useState({ name: '', photo: '' });
   
-   
+  // Estados para modal de partida interna (usando componente existente)
+  const [showInternalMatchDetails, setShowInternalMatchDetails] = useState(false);
+  const [selectedInternalMatchData, setSelectedInternalMatchData] = useState<InternalMatch | null>(null);
+  const [internalMatchPlayers, setInternalMatchPlayers] = useState<Player[]>([]);
 
   // Carregar times do usuário
   useEffect(() => {
@@ -127,7 +134,7 @@ export default function AgendaPage() {
             match_date: internal.match_date,
             match_time: internal.match_time || '00:00',
             location: internal.location || 'A definir',
-            status: internal.status === 'completed' ? 'completed' : 'confirmed',
+            status: internal.status === 'completed' ? 'completed' : internal.status === 'in_progress' ? 'in_progress' : 'confirmed',
             score_home: internal.score_team_a ?? null,
             score_away: internal.score_team_b ?? null,
             highlight_player_name: null,
@@ -171,7 +178,7 @@ export default function AgendaPage() {
 
   
   // Função para abrir modal com dados carregados
-  const openMatchDetails = (match: Match) => {
+  const openMatchDetails = (match: AgendaMatch) => {
     setSelectedMatch(match);
     setScoreHome(match.score_home?.toString() || '');
     setScoreAway(match.score_away?.toString() || '');
@@ -245,14 +252,38 @@ export default function AgendaPage() {
     setHighlightPlayer(prev => ({ ...prev, photo: publicUrl }));
   };
 
-  
+  // Abrir modal de partida interna (usando componente existente)
+  const openInternalMatchDetails = async (match: AgendaMatch) => {
+    const { data: internalMatchData } = await supabase
+      .from('internal_matches')
+      .select('*')
+      .eq('id', match.id)
+      .single();
+    
+    if (internalMatchData) {
+      const { data: playersData } = await supabase
+        .from('players')
+        .select('*')
+        .eq('team_id', internalMatchData.team_id);
+      
+      setSelectedInternalMatchData(internalMatchData);
+      setInternalMatchPlayers(playersData || []);
+      setShowInternalMatchDetails(true);
+    }
+  };
+
   // Partidas filtradas
   const confirmedMatches = matches.filter(m => 
     m.status === 'confirmed' || m.status === 'scheduled' || m.status === 'pending'
   );
+  const inProgressMatches = matches.filter(m => m.status === 'in_progress');
   const completedMatches = matches.filter(m => m.status === 'completed');
   
-  const statusFilteredMatches = filter === 'confirmed' ? confirmedMatches : completedMatches;
+  const statusFilteredMatches = filter === 'confirmed' 
+    ? confirmedMatches 
+    : filter === 'in_progress' 
+      ? inProgressMatches 
+      : completedMatches;
   
   const filteredMatches = filterMonth 
     ? statusFilteredMatches.filter(m => m.match_date.startsWith(filterMonth))
@@ -269,6 +300,8 @@ export default function AgendaPage() {
       case 'scheduled':
       case 'pending':
         return { icon: AlertCircle, text: 'Pendente', color: 'text-yellow-500', bg: 'bg-yellow-500/20' };
+      case 'in_progress':
+        return { icon: Play, text: 'Em andamento', color: 'text-blue-500', bg: 'bg-blue-500/20' };
       case 'completed':
         return { icon: CheckCircle, text: 'Finalizado', color: 'text-white/50', bg: 'bg-white/10' };
       default:
@@ -577,6 +610,17 @@ export default function AgendaPage() {
                 </button>
                 
                 <button
+                  onClick={() => setFilter('in_progress')}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
+                    filter === 'in_progress'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white/10 text-white/60 hover:bg-white/20'
+                  }`}
+                >
+                  Em andamento ({inProgressMatches.length})
+                </button>
+                
+                <button
                   onClick={() => setFilter('completed')}
                   className={`px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
                     filter === 'completed'
@@ -833,6 +877,15 @@ export default function AgendaPage() {
                       >
                         Ver Detalhes
                       </button>
+                      {match.match_type === 'interna' && match.status !== 'completed' && (
+                        <button 
+                          onClick={() => openInternalMatchDetails(match)}
+                          className={`flex-1 ${match.status === 'in_progress' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'} text-white font-medium py-2 px-4 rounded-lg transition-all text-sm flex items-center justify-center gap-2`}
+                        >
+                          <Play className="w-4 h-4" />
+                          {match.status === 'in_progress' ? 'Ver partida em andamento' : 'Iniciar Jogo'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -847,7 +900,7 @@ export default function AgendaPage() {
                   Nenhum jogo encontrado
                 </h3>
                 <p className="text-white/60">
-                  Não há jogos {filter === 'confirmed' ? 'confirmados' : 'finalizados'}
+                  Não há jogos {filter === 'confirmed' ? 'confirmados' : filter === 'in_progress' ? 'em andamento' : 'finalizados'}
                   {filterMonth && ` em ${new Date(filterMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`}.
                 </p>
               </div>
@@ -1082,6 +1135,26 @@ export default function AgendaPage() {
         )}
 
         </>
+        )}
+
+        {/* Modal: Partida Interna Detalhes (usando componente existente) */}
+        {showInternalMatchDetails && selectedInternalMatchData && (
+          <PartidaInternaDetalhes
+            match={selectedInternalMatchData}
+            players={internalMatchPlayers}
+            isOwnerMode={true}
+            onClose={() => {
+              setShowInternalMatchDetails(false);
+              setSelectedInternalMatchData(null);
+              setInternalMatchPlayers([]);
+            }}
+            onUpdate={() => {
+              // Fechar modal após atualização
+              setShowInternalMatchDetails(false);
+              setSelectedInternalMatchData(null);
+              setInternalMatchPlayers([]);
+            }}
+          />
         )}
       </main>
     </div>
