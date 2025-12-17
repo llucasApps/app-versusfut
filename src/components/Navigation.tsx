@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Calendar, Swords, Menu, X, Settings, LogOut, ChevronDown, Users2, Target } from 'lucide-react';
+import { Home, Users, Calendar, Swords, Menu, X, User, ChevronDown, Users2, Target } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -180,7 +180,7 @@ export default function Navigation() {
                   )}
                 </div>
 
-                {/* Configurações */}
+                {/* Perfil */}
                 <Link
                   href="/configuracoes"
                   className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-300 ${
@@ -189,18 +189,9 @@ export default function Navigation() {
                       : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
                   }`}
                 >
-                  <Settings className="w-4 h-4" />
-                  <span className="font-medium text-sm">Configurações</span>
+                  <User className="w-4 h-4" />
+                  <span className="font-medium text-sm">Perfil</span>
                 </Link>
-
-                {/* Logout Button */}
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-300 text-white/70 hover:text-red-500 hover:bg-red-500/10"
-                  title="Sair"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
               </div>
             </div>
           </div>
@@ -311,7 +302,7 @@ export default function Navigation() {
                 )}
               </div>
 
-              {/* Configurações Mobile */}
+              {/* Perfil Mobile */}
               <Link
                 href="/configuracoes"
                 onClick={() => setMobileMenuOpen(false)}
@@ -321,21 +312,9 @@ export default function Navigation() {
                     : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
                 }`}
               >
-                <Settings className="w-5 h-5" />
-                <span className="font-medium">Configurações</span>
+                <User className="w-5 h-5" />
+                <span className="font-medium">Perfil</span>
               </Link>
-
-              {/* Logout Button Mobile */}
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleLogout();
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 text-white/70 hover:text-red-500 hover:bg-red-500/10"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="font-medium">Sair</span>
-              </button>
             </div>
           </div>
         )}

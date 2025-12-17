@@ -3,7 +3,7 @@
 import Navigation from '@/components/Navigation';
 import { supabase, UserSettings } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Settings, User, Moon, Sun, Bell, BellOff, Shield, Loader2, Save, Check } from 'lucide-react';
+import { User, Moon, Sun, Bell, BellOff, Shield, Loader2, Check, LogOut, Camera, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface UserConfig {
@@ -11,16 +11,19 @@ interface UserConfig {
   darkMode: boolean;
   notifications: boolean;
   viewMode: 'owner' | 'player';
+  avatarUrl: string;
 }
 
 export default function ConfiguracoesPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [config, setConfig] = useState<UserConfig>({
     displayName: '',
     darkMode: true,
     notifications: true,
-    viewMode: 'owner'
+    viewMode: 'owner',
+    avatarUrl: ''
   });
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,7 +56,8 @@ export default function ConfiguracoesPage() {
           displayName: settings.display_name || profile?.name || '',
           darkMode: settings.dark_mode ?? true,
           notifications: settings.notifications ?? true,
-          viewMode: settings.view_mode || 'owner'
+          viewMode: settings.view_mode || 'owner',
+          avatarUrl: settings.avatar_url || ''
         });
         // Sincronizar localStorage para componentes que dependem dele
         localStorage.setItem('viewMode', settings.view_mode || 'owner');
@@ -61,7 +65,8 @@ export default function ConfiguracoesPage() {
         // Usuário novo - usar dados do perfil
         setConfig(prev => ({
           ...prev,
-          displayName: profile?.name || ''
+          displayName: profile?.name || '',
+          avatarUrl: ''
         }));
       }
 
@@ -93,6 +98,7 @@ export default function ConfiguracoesPage() {
           dark_mode: newConfig.darkMode,
           notifications: newConfig.notifications,
           view_mode: newConfig.viewMode,
+          avatar_url: newConfig.avatarUrl,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
@@ -106,6 +112,42 @@ export default function ConfiguracoesPage() {
       }
       
       setSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    setUploadingAvatar(true);
+
+    try {
+      // Criar nome único para o arquivo
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      // Upload para o Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        console.error('Erro ao fazer upload:', uploadError);
+        return;
+      }
+
+      // Obter URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Atualizar configuração
+      await handleConfigChange('avatarUrl', publicUrl);
+    } catch (error) {
+      console.error('Erro ao fazer upload do avatar:', error);
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -126,14 +168,39 @@ export default function ConfiguracoesPage() {
         <div className="mb-8 sm:mb-12">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-4 bg-[#FF6B00]/10 rounded-2xl">
-                <Settings className="w-8 h-8 text-[#FF6B00]" />
+              {/* Foto de Perfil */}
+              <div className="relative group">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#FF6B00]/10 border-2 border-[#FF6B00]/30 overflow-hidden flex items-center justify-center">
+                  {config.avatarUrl ? (
+                    <img 
+                      src={config.avatarUrl} 
+                      alt="Foto de perfil" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-10 h-10 sm:w-12 sm:h-12 text-[#FF6B00]/60" />
+                  )}
+                </div>
+                <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  {uploadingAvatar ? (
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  ) : (
+                    <Camera className="w-6 h-6 text-white" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                    disabled={uploadingAvatar}
+                  />
+                </label>
               </div>
               <div>
                 <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  Configurações
+                  Meu Perfil
                 </h1>
-                <p className="text-white/60 text-base sm:text-lg">Personalize sua experiência no VersusFut</p>
+                <p className="text-white/60 text-base sm:text-lg">{user?.email}</p>
               </div>
             </div>
             
@@ -160,12 +227,12 @@ export default function ConfiguracoesPage() {
 
         {/* Settings Sections */}
         <div className="max-w-3xl space-y-6">
-          {/* Perfil */}
+          {/* Informações do Perfil */}
           <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <User className="w-6 h-6 text-[#FF6B00]" />
               <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Perfil
+                Informações Pessoais
               </h2>
             </div>
 
@@ -185,53 +252,21 @@ export default function ConfiguracoesPage() {
                   Este nome será exibido para outros usuários
                 </p>
               </div>
-            </div>
-          </div>
 
-          {/* Modo de Visualização */}
-          <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Shield className="w-6 h-6 text-[#FF6B00]" />
-              <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Modo de Visualização
-              </h2>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-white/60 text-sm mb-4">
-                Escolha como você deseja visualizar o aplicativo. O modo "Dono de Time" oferece acesso completo às funcionalidades de gestão.
-              </p>
-              
-              <div className="flex items-center gap-3 bg-white/5 rounded-xl p-2">
-                <button
-                  onClick={() => handleConfigChange('viewMode', 'owner')}
-                  className={`flex-1 flex items-center justify-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
-                    config.viewMode === 'owner'
-                      ? 'bg-[#FF6B00] text-white shadow-[0_0_20px_rgba(255,107,0,0.3)]'
-                      : 'text-white/60 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Shield className="w-5 h-5" />
-                  <span className="font-medium">Dono de Time</span>
-                </button>
-                <button
-                  onClick={() => handleConfigChange('viewMode', 'player')}
-                  className={`flex-1 flex items-center justify-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
-                    config.viewMode === 'player'
-                      ? 'bg-[#FF6B00] text-white shadow-[0_0_20px_rgba(255,107,0,0.3)]'
-                      : 'text-white/60 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <User className="w-5 h-5" />
-                  <span className="font-medium">Jogador</span>
-                </button>
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">
+                  E-mail
+                </label>
+                <input
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white/50 cursor-not-allowed"
+                />
+                <p className="text-white/40 text-sm mt-2">
+                  O e-mail não pode ser alterado
+                </p>
               </div>
-
-              <p className="text-white/40 text-xs mt-2">
-                {config.viewMode === 'owner' 
-                  ? 'Você tem acesso completo para gerenciar times, táticas e jogadores.'
-                  : 'Você está visualizando como jogador, com acesso limitado.'}
-              </p>
             </div>
           </div>
 
@@ -245,34 +280,19 @@ export default function ConfiguracoesPage() {
             </div>
 
             <div className="space-y-6">
-              {/* Tema Escuro */}
-              <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-all">
+              {/* Tema Escuro - Desabilitado temporariamente */}
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl opacity-50">
                 <div className="flex items-center gap-4">
-                  {config.darkMode ? (
-                    <Moon className="w-6 h-6 text-[#FF6B00]" />
-                  ) : (
-                    <Sun className="w-6 h-6 text-[#FF6B00]" />
-                  )}
+                  <Moon className="w-6 h-6 text-[#FF6B00]" />
                   <div>
                     <div className="text-white font-medium">Tema Escuro</div>
-                    <div className="text-white/60 text-sm">
-                      {config.darkMode ? 'Modo escuro ativado' : 'Modo claro ativado'}
-                    </div>
+                    <div className="text-white/60 text-sm">Modo escuro ativado</div>
                   </div>
                 </div>
                 
-                <button
-                  onClick={() => handleConfigChange('darkMode', !config.darkMode)}
-                  className={`relative w-14 h-8 rounded-full transition-all duration-300 ${
-                    config.darkMode ? 'bg-[#FF6B00]' : 'bg-white/20'
-                  }`}
-                >
-                  <div
-                    className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform duration-300 ${
-                      config.darkMode ? 'translate-x-6' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
+                <div className="relative w-14 h-8 rounded-full bg-[#FF6B00] cursor-not-allowed">
+                  <div className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full translate-x-6" />
+                </div>
               </div>
 
               {/* Notificações */}
@@ -318,6 +338,15 @@ export default function ConfiguracoesPage() {
               </p>
             </div>
           </div>
+
+          {/* Botão Sair */}
+          <button
+            onClick={signOut}
+            className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-500 hover:bg-red-500/20 hover:border-red-500/50 transition-all duration-300"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Sair da Conta</span>
+          </button>
         </div>
       </main>
     </div>
