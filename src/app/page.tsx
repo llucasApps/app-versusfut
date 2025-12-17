@@ -68,35 +68,49 @@ export default function Dashboard() {
           totalGoals
         });
 
-        // Buscar próximos jogos (partidas agendadas ou confirmadas)
+        // Buscar próximos jogos (convites aceitos = partidas confirmadas)
         if (teamIds.length > 0) {
-          const { data: matchesData, error: matchesError } = await supabase
-            .from('matches')
+          // Buscar convites aceitos (tanto enviados quanto recebidos pelos meus times)
+          const { data: acceptedInvites, error: invitesError } = await supabase
+            .from('match_invites')
             .select('*')
-            .or(`team_id.in.(${teamIds.join(',')}),home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
-            .in('status', ['scheduled', 'confirmed'])
-            .gte('match_date', new Date().toISOString().split('T')[0])
-            .order('match_date', { ascending: true })
+            .or(`from_team_id.in.(${teamIds.join(',')}),to_team_id.in.(${teamIds.join(',')})`)
+            .eq('status', 'accepted')
+            .gte('proposed_date', new Date().toISOString().split('T')[0])
+            .order('proposed_date', { ascending: true })
             .limit(3);
 
-          if (matchesError) {
-            console.error('Erro ao buscar partidas:', matchesError);
+          if (invitesError) {
+            console.error('Erro ao buscar partidas:', invitesError);
           } else {
-            setUpcomingMatches(matchesData || []);
+            // Converter convites aceitos para formato de Match para exibição
+            const matchesFromInvites: Match[] = (acceptedInvites || []).map(invite => ({
+              id: invite.id,
+              team_id: invite.to_team_id,
+              home_team_id: invite.from_team_id,
+              home_team_name: invite.from_team_name,
+              away_team_id: invite.to_team_id,
+              away_team_name: invite.to_team_name,
+              match_date: invite.proposed_date,
+              match_time: invite.proposed_time || '00:00',
+              location: invite.proposed_location || 'Local a definir',
+              status: 'confirmed' as const
+            }));
+            setUpcomingMatches(matchesFromInvites);
           }
 
           // Buscar convites pendentes recebidos
-          const { data: invitesData, error: invitesError } = await supabase
+          const { data: pendingData, error: pendingError } = await supabase
             .from('match_invites')
             .select('*')
             .in('to_team_id', teamIds)
             .eq('status', 'pending')
             .order('created_at', { ascending: false });
 
-          if (invitesError) {
-            console.error('Erro ao buscar convites:', invitesError);
+          if (pendingError) {
+            console.error('Erro ao buscar convites:', pendingError);
           } else {
-            setPendingInvites(invitesData || []);
+            setPendingInvites(pendingData || []);
           }
         }
       } catch (error) {

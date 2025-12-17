@@ -22,9 +22,14 @@ export interface Team {
   description?: string;
   president?: string;
   phone?: string;
+  city?: string;
+  state?: string;
+  neighborhood?: string;
   category?: 'Juvenil' | 'Adulto' | 'Veterano 35+' | 'Master 45+';
   team_type?: 'Campo' | 'Society' | 'Futsal';
   has_venue?: boolean;
+  venue_name?: string;
+  venue_address?: string;
   available_for_match?: boolean;
   wins?: number;
   draws?: number;

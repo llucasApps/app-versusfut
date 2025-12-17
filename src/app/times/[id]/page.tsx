@@ -8,7 +8,7 @@ import HistoricoPartidas from '@/components/HistoricoPartidas';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useViewMode } from '@/hooks/useViewMode';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Team } from '@/lib/supabase';
@@ -184,8 +184,50 @@ export default function TeamDetailPage() {
     position: 'Atacante',
     number: 0,
     age: 0,
-    available: true
+    available: true,
+    phone: '',
+    preferred_foot: 'Direito' as 'Direito' | 'Esquerdo' | 'Ambos',
+    secondary_position: '',
+    is_guest: false,
   });
+  const [newPlayerPhoto, setNewPlayerPhoto] = useState<File | null>(null);
+  const [newPlayerPhotoPreview, setNewPlayerPhotoPreview] = useState<string>('');
+  const [uploadingPlayerPhoto, setUploadingPlayerPhoto] = useState(false);
+  const newPlayerPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  // Função para aplicar máscara de telefone
+  const formatPlayerPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers.length ? `(${numbers}` : '';
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  };
+
+  const handleNewPlayerPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPlayerPhone(e.target.value);
+    setNewPlayer({ ...newPlayer, phone: formatted });
+  };
+
+  // Função para upload de foto do jogador (preview)
+  const handleNewPlayerPhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('A imagem deve ter no máximo 5MB');
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        alert('O arquivo deve ser uma imagem');
+        return;
+      }
+      setNewPlayerPhoto(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewPlayerPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
   const [editPlayerData, setEditPlayerData] = useState<Partial<Player>>({});
 
   const positions = ['Goleiro', 'Zagueiro', 'Lateral', 'Volante', 'Meio-Campo', 'Meia', 'Atacante', 'Ponta'];
@@ -392,6 +434,7 @@ export default function TeamDetailPage() {
   const handleAddPlayer = async () => {
     if (!team || !newPlayer.name || newPlayer.number <= 0) return;
 
+    // Primeiro, criar o jogador sem foto
     const { data, error } = await supabase
       .from('players')
       .insert({
@@ -401,6 +444,10 @@ export default function TeamDetailPage() {
         number: newPlayer.number,
         age: newPlayer.age || null,
         available: newPlayer.available,
+        phone: newPlayer.phone || null,
+        preferred_foot: newPlayer.preferred_foot,
+        secondary_position: newPlayer.secondary_position || null,
+        is_guest: newPlayer.is_guest,
         goals: 0,
         assists: 0,
         matches: 0
@@ -414,6 +461,18 @@ export default function TeamDetailPage() {
       return;
     }
 
+    // Se houver foto, fazer upload e atualizar o jogador
+    if (newPlayerPhoto && data) {
+      const fotoUrl = await uploadPlayerPhoto(newPlayerPhoto, data.id);
+      if (fotoUrl) {
+        await supabase
+          .from('players')
+          .update({ foto: fotoUrl })
+          .eq('id', data.id);
+        data.foto = fotoUrl;
+      }
+    }
+
     setCustomPlayers([...customPlayers, data]);
     setShowAddPlayerModal(false);
     setNewPlayer({
@@ -421,8 +480,14 @@ export default function TeamDetailPage() {
       position: 'Atacante',
       number: 0,
       age: 0,
-      available: true
+      available: true,
+      phone: '',
+      preferred_foot: 'Direito',
+      secondary_position: '',
+      is_guest: false,
     });
+    setNewPlayerPhoto(null);
+    setNewPlayerPhotoPreview('');
   };
 
   // Remover jogador do Supabase
@@ -2391,6 +2456,56 @@ export default function TeamDetailPage() {
             </div>
 
             <div className="space-y-4">
+              {/* Foto do Jogador */}
+              <div>
+                <label className="block text-white/80 mb-2 font-medium">Foto do Jogador</label>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    {newPlayerPhotoPreview ? (
+                      <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#FF6B00]/30">
+                        <img 
+                          src={newPlayerPhotoPreview} 
+                          alt="Preview" 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center">
+                        <Camera className="w-8 h-8 text-white/30" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      ref={newPlayerPhotoInputRef}
+                      onChange={handleNewPlayerPhotoUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => newPlayerPhotoInputRef.current?.click()}
+                      className="bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm"
+                    >
+                      {newPlayerPhotoPreview ? 'Alterar Foto' : 'Adicionar Foto'}
+                    </button>
+                    {newPlayerPhotoPreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewPlayerPhoto(null);
+                          setNewPlayerPhotoPreview('');
+                        }}
+                        className="ml-2 text-red-400 hover:text-red-300 text-sm"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-white/80 mb-2 font-medium">Nome Completo *</label>
                 <input
@@ -2430,17 +2545,60 @@ export default function TeamDetailPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-white/80 mb-2 font-medium">Posição *</label>
-                <select
-                  value={newPlayer.position}
-                  onChange={(e) => setNewPlayer({ ...newPlayer, position: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
-                >
-                  {positions.map(pos => (
-                    <option key={pos} value={pos}>{pos}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Posição Principal *</label>
+                  <select
+                    value={newPlayer.position}
+                    onChange={(e) => setNewPlayer({ ...newPlayer, position: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  >
+                    {positions.map(pos => (
+                      <option key={pos} value={pos}>{pos}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Posição Secundária</label>
+                  <select
+                    value={newPlayer.secondary_position}
+                    onChange={(e) => setNewPlayer({ ...newPlayer, secondary_position: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  >
+                    <option value="">Nenhuma</option>
+                    {positions.map(pos => (
+                      <option key={pos} value={pos}>{pos}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Pé Predominante</label>
+                  <select
+                    value={newPlayer.preferred_foot}
+                    onChange={(e) => setNewPlayer({ ...newPlayer, preferred_foot: e.target.value as 'Direito' | 'Esquerdo' | 'Ambos' })}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  >
+                    {preferredFootOptions.map(foot => (
+                      <option key={foot} value={foot}>{foot}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-white/80 mb-2 font-medium">Telefone</label>
+                  <input
+                    type="tel"
+                    value={newPlayer.phone}
+                    onChange={handleNewPlayerPhoneChange}
+                    placeholder="(00) 00000-0000"
+                    maxLength={15}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF6B00] focus:outline-none"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg">
@@ -2453,6 +2611,19 @@ export default function TeamDetailPage() {
                 />
                 <label htmlFor="available" className="text-white cursor-pointer">
                   Jogador disponível para próximos jogos
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="is_guest"
+                  checked={newPlayer.is_guest}
+                  onChange={(e) => setNewPlayer({ ...newPlayer, is_guest: e.target.checked })}
+                  className="w-5 h-5 rounded border-white/20 bg-white/5 text-[#FF6B00] focus:ring-[#FF6B00]"
+                />
+                <label htmlFor="is_guest" className="text-white cursor-pointer">
+                  Jogador convidado (não faz parte do elenco fixo)
                 </label>
               </div>
             </div>

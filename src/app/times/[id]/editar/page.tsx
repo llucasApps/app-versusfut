@@ -20,11 +20,35 @@ export default function EditarTimePage() {
     description: '',
     president: '',
     phone: '',
+    city: '',
+    state: '',
+    neighborhood: '',
     category: '' as '' | 'Juvenil' | 'Adulto' | 'Veterano 35+' | 'Master 45+',
     availableForMatch: true,
     teamType: '' as '' | 'Campo' | 'Society' | 'Futsal',
     hasVenue: false,
+    venueName: '',
+    venueAddress: '',
   });
+
+  // Lista de estados brasileiros
+  const brazilianStates = [
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+    'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+  ];
+
+  // Função para aplicar máscara de telefone
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers.length ? `(${numbers}` : '';
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhone(e.target.value);
+    setFormData({ ...formData, phone: formatted });
+  };
 
   const [saved, setSaved] = useState(false);
 
@@ -68,10 +92,15 @@ export default function EditarTimePage() {
           description: data.description || '',
           president: data.president || '',
           phone: data.phone || '',
+          city: data.city || '',
+          state: data.state || '',
+          neighborhood: data.neighborhood || '',
           category: data.category || '',
           availableForMatch: data.available_for_match !== undefined ? data.available_for_match : true,
           teamType: data.team_type || '',
           hasVenue: data.has_venue !== undefined ? data.has_venue : false,
+          venueName: data.venue_name || '',
+          venueAddress: data.venue_address || '',
         });
       }
       setLoading(false);
@@ -93,10 +122,15 @@ export default function EditarTimePage() {
           description: formData.description,
           president: formData.president,
           phone: formData.phone,
+          city: formData.city,
+          state: formData.state,
+          neighborhood: formData.neighborhood,
           category: formData.category,
           available_for_match: formData.availableForMatch,
           team_type: formData.teamType,
           has_venue: formData.hasVenue,
+          venue_name: formData.venueName,
+          venue_address: formData.venueAddress,
         })
         .eq('id', team.id);
 
@@ -281,10 +315,57 @@ export default function EditarTimePage() {
                 type="tel"
                 id="phone"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={handlePhoneChange}
                 placeholder="(00) 00000-0000"
+                maxLength={15}
                 className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF6B00]/40 transition-all"
               />
+            </div>
+
+            {/* Localização */}
+            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+              <label className="block text-white font-bold mb-4 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-[#FF6B00]" />
+                Localização do Time
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label htmlFor="city" className="block text-white/60 text-sm mb-2">Cidade</label>
+                  <input
+                    type="text"
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="Ex: São Paulo"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF6B00]/40 transition-all"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="state" className="block text-white/60 text-sm mb-2">Estado</label>
+                  <select
+                    id="state"
+                    value={formData.state}
+                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#FF6B00]/40 transition-all"
+                  >
+                    <option value="" className="bg-[#1A1A1A]">Selecione</option>
+                    {brazilianStates.map(state => (
+                      <option key={state} value={state} className="bg-[#1A1A1A]">{state}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="neighborhood" className="block text-white/60 text-sm mb-2">Bairro</label>
+                  <input
+                    type="text"
+                    id="neighborhood"
+                    value={formData.neighborhood}
+                    onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+                    placeholder="Ex: Centro"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF6B00]/40 transition-all"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Category */}
@@ -330,7 +411,7 @@ export default function EditarTimePage() {
                 <MapPin className="w-5 h-5 text-[#FF6B00]" />
                 Possui local para jogo?
               </label>
-              <div className="flex gap-4">
+              <div className="flex gap-4 mb-4">
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, hasVenue: true })}
@@ -345,7 +426,7 @@ export default function EditarTimePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, hasVenue: false })}
+                  onClick={() => setFormData({ ...formData, hasVenue: false, venueName: '', venueAddress: '' })}
                   className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-xl transition-all ${
                     !formData.hasVenue
                       ? 'bg-red-500/20 border-2 border-red-500 text-red-400'
@@ -356,6 +437,34 @@ export default function EditarTimePage() {
                   Não
                 </button>
               </div>
+              
+              {/* Campos condicionais para local de jogo */}
+              {formData.hasVenue && (
+                <div className="space-y-4 pt-4 border-t border-white/10">
+                  <div>
+                    <label htmlFor="venueName" className="block text-white/60 text-sm mb-2">Nome do Local</label>
+                    <input
+                      type="text"
+                      id="venueName"
+                      value={formData.venueName}
+                      onChange={(e) => setFormData({ ...formData, venueName: e.target.value })}
+                      placeholder="Ex: Quadra do Bairro, Campo Municipal..."
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF6B00]/40 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="venueAddress" className="block text-white/60 text-sm mb-2">Endereço (opcional)</label>
+                    <input
+                      type="text"
+                      id="venueAddress"
+                      value={formData.venueAddress}
+                      onChange={(e) => setFormData({ ...formData, venueAddress: e.target.value })}
+                      placeholder="Ex: Rua das Flores, 123"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF6B00]/40 transition-all"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Availability */}
