@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Calendar, Swords, Menu, X, User, ChevronDown, Users2, Target } from 'lucide-react';
+import { Home, Users, Calendar, Menu, X, User, ChevronDown, Users2, Target, Trophy } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -132,7 +132,7 @@ export default function Navigation() {
                         : 'text-white/70 hover:text-[#FF6B00] hover:bg-[#FF6B00]/5'
                     }`}
                   >
-                    <Swords className="w-4 h-4" />
+                    <Trophy className="w-4 h-4" />
                     <span className="font-medium text-sm">Partidas</span>
                     <ChevronDown className={`w-3 h-3 transition-transform ${partidasMenuOpen ? 'rotate-180' : ''}`} />
                     {pendingInvitesCount > 0 && (
@@ -256,7 +256,7 @@ export default function Navigation() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Swords className="w-5 h-5" />
+                    <Trophy className="w-5 h-5" />
                     <span className="font-medium">Partidas</span>
                     {pendingInvitesCount > 0 && (
                       <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">

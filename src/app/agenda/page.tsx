@@ -2,9 +2,12 @@
 
 import Navigation from '@/components/Navigation';
 import { supabase, Match, Team, TeamAvailableDate, TeamAgendaSettings } from '@/lib/supabase';
-import { Calendar, Clock, MapPin, Filter, CheckCircle, XCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare, X, Phone, User, Star, Upload, Trophy, Plus, Loader2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, Filter, CheckCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare, X, User, Upload, Trophy, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+
+// Tipo estendido para incluir tipo de partida
+type AgendaMatch = Match & { match_type?: 'interna' | 'adversario' };
 
 export default function AgendaPage() {
   const { user } = useAuth();
@@ -19,7 +22,7 @@ export default function AgendaPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   
   // Partidas do Supabase
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [matches, setMatches] = useState<AgendaMatch[]>([]);
   
   // Estados para configurações de agenda
   const [configMonth, setConfigMonth] = useState(new Date());
@@ -37,17 +40,7 @@ export default function AgendaPage() {
   const [scoreAway, setScoreAway] = useState('');
   const [highlightPlayer, setHighlightPlayer] = useState({ name: '', photo: '' });
   
-  // Modal de adicionar partida
-  const [showAddMatchModal, setShowAddMatchModal] = useState(false);
-  const [savingMatch, setSavingMatch] = useState(false);
-  const [matchFormData, setMatchFormData] = useState({
-    home_team_name: '',
-    away_team_name: '',
-    match_date: '',
-    match_time: '',
-    location: '',
-    status: 'scheduled' as Match['status']
-  }); 
+   
 
   // Carregar times do usuário
   useEffect(() => {
@@ -81,16 +74,73 @@ export default function AgendaPage() {
     const fetchMatchesAndSettings = async () => {
       if (!selectedTeamId) return;
 
-      // Carregar partidas (onde o time é dono, home ou away)
-      const { data: matchesData } = await supabase
-        .from('matches')
+      const allMatches: AgendaMatch[] = [];
+
+      // 1. Carregar partidas contra adversários (match_invites com status accepted ou completed)
+      const { data: invitesData } = await supabase
+        .from('match_invites')
         .select('*')
-        .or(`team_id.eq.${selectedTeamId},home_team_id.eq.${selectedTeamId},away_team_id.eq.${selectedTeamId}`)
+        .or(`from_team_id.eq.${selectedTeamId},to_team_id.eq.${selectedTeamId}`)
+        .in('status', ['accepted', 'completed'])
+        .order('proposed_date', { ascending: false });
+
+      if (invitesData) {
+        invitesData.forEach(invite => {
+          allMatches.push({
+            id: invite.id,
+            team_id: invite.from_team_id,
+            home_team_id: invite.from_team_id,
+            away_team_id: invite.to_team_id,
+            home_team_name: invite.from_team_name || 'Time Casa',
+            away_team_name: invite.to_team_name || 'Time Visitante',
+            match_date: invite.proposed_date,
+            match_time: invite.proposed_time || '00:00',
+            location: invite.location || 'A definir',
+            status: invite.status === 'accepted' ? 'confirmed' : 'completed',
+            score_home: invite.score_home ?? null,
+            score_away: invite.score_away ?? null,
+            highlight_player_name: invite.highlight_player_name || null,
+            highlight_player_photo: invite.highlight_player_photo || null,
+            created_at: invite.created_at,
+            match_type: 'adversario',
+          });
+        });
+      }
+
+      // 2. Carregar partidas internas (internal_matches)
+      const { data: internalData } = await supabase
+        .from('internal_matches')
+        .select('*')
+        .eq('team_id', selectedTeamId)
+        .in('status', ['scheduled', 'in_progress', 'completed'])
         .order('match_date', { ascending: false });
 
-      if (matchesData) {
-        setMatches(matchesData);
+      if (internalData) {
+        internalData.forEach(internal => {
+          allMatches.push({
+            id: internal.id,
+            team_id: internal.team_id,
+            home_team_id: internal.team_id,
+            away_team_id: internal.team_id,
+            home_team_name: 'Time A',
+            away_team_name: 'Time B',
+            match_date: internal.match_date,
+            match_time: internal.match_time || '00:00',
+            location: internal.location || 'A definir',
+            status: internal.status === 'completed' ? 'completed' : 'confirmed',
+            score_home: internal.score_team_a ?? null,
+            score_away: internal.score_team_b ?? null,
+            highlight_player_name: null,
+            highlight_player_photo: null,
+            created_at: internal.created_at,
+            match_type: 'interna',
+          });
+        });
       }
+
+      // Ordenar por data
+      allMatches.sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime());
+      setMatches(allMatches);
 
       // Carregar datas disponíveis
       const { data: datesData } = await supabase
@@ -119,17 +169,7 @@ export default function AgendaPage() {
     fetchMatchesAndSettings();
   }, [selectedTeamId]);
 
-  // Recarregar partidas
-  const reloadMatches = async () => {
-    if (!selectedTeamId) return;
-    const { data } = await supabase
-      .from('matches')
-      .select('*')
-      .or(`team_id.eq.${selectedTeamId},home_team_id.eq.${selectedTeamId},away_team_id.eq.${selectedTeamId}`)
-      .order('match_date', { ascending: false });
-    if (data) setMatches(data);
-  };
-
+  
   // Função para abrir modal com dados carregados
   const openMatchDetails = (match: Match) => {
     setSelectedMatch(match);
@@ -163,7 +203,14 @@ export default function AgendaPage() {
       return;
     }
 
-    await reloadMatches();
+    // Recarregar partidas após salvar
+    const { data: matchesData } = await supabase
+      .from('matches')
+      .select('*')
+      .or(`team_id.eq.${selectedTeamId},home_team_id.eq.${selectedTeamId},away_team_id.eq.${selectedTeamId}`)
+      .order('match_date', { ascending: false });
+    if (matchesData) setMatches(matchesData);
+    
     setEditingScore(false);
     setSelectedMatch(null);
   };
@@ -198,62 +245,7 @@ export default function AgendaPage() {
     setHighlightPlayer(prev => ({ ...prev, photo: publicUrl }));
   };
 
-  // Adicionar nova partida
-  const handleAddMatch = async () => {
-    if (!selectedTeamId || !matchFormData.match_date || !matchFormData.match_time) return;
-
-    setSavingMatch(true);
-    const selectedTeam = userTeams.find(t => t.id === selectedTeamId);
-
-    const { error } = await supabase
-      .from('matches')
-      .insert({
-        team_id: selectedTeamId,
-        home_team_name: matchFormData.home_team_name || selectedTeam?.name || 'Meu Time',
-        away_team_name: matchFormData.away_team_name || 'Adversário',
-        match_date: matchFormData.match_date,
-        match_time: matchFormData.match_time,
-        location: matchFormData.location || 'A definir',
-        status: matchFormData.status
-      });
-
-    if (error) {
-      console.error('Erro ao adicionar partida:', error);
-      alert('Erro ao adicionar partida: ' + error.message);
-    } else {
-      await reloadMatches();
-      setShowAddMatchModal(false);
-      setMatchFormData({
-        home_team_name: '',
-        away_team_name: '',
-        match_date: '',
-        match_time: '',
-        location: '',
-        status: 'scheduled'
-      });
-    }
-    setSavingMatch(false);
-  };
-
-  // Excluir partida
-  const handleDeleteMatch = async (matchId: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta partida?')) return;
-
-    const { error } = await supabase
-      .from('matches')
-      .delete()
-      .eq('id', matchId);
-
-    if (error) {
-      console.error('Erro ao excluir partida:', error);
-      alert('Erro ao excluir partida.');
-      return;
-    }
-
-    await reloadMatches();
-    setSelectedMatch(null);
-  };
-
+  
   // Partidas filtradas
   const confirmedMatches = matches.filter(m => 
     m.status === 'confirmed' || m.status === 'scheduled' || m.status === 'pending'
@@ -545,17 +537,6 @@ export default function AgendaPage() {
         {/* Tab: Partidas */}
         {activeTab === 'matches' && (
           <>
-            {/* Botão Adicionar Partida */}
-            <div className="flex justify-end mb-6">
-              <button
-                onClick={() => setShowAddMatchModal(true)}
-                className="bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center gap-2 hover:shadow-[0_0_20px_rgba(255,90,0,0.3)]"
-              >
-                <Plus className="w-5 h-5" />
-                Nova Partida
-              </button>
-            </div>
-
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
               <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-green-500/20 rounded-xl p-5">
@@ -811,7 +792,10 @@ export default function AgendaPage() {
                         <div className="text-white/40 text-sm">Casa</div>
                       </div>
                       
-                      <div className="px-6 sm:px-8">
+                      <div className="px-6 sm:px-8 text-center">
+                        {match.match_type === 'interna' && (
+                          <div className="text-white/40 text-xs mb-1">Partida Interna</div>
+                        )}
                         {match.score_home !== null && match.score_away !== null ? (
                           <div className="flex items-center gap-4">
                             <div className="text-3xl font-bold text-white">{match.score_home}</div>
@@ -1095,115 +1079,7 @@ export default function AgendaPage() {
           </div>
         )}
 
-        {/* Modal Adicionar Partida */}
-        {showAddMatchModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF5A00]/30 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-6 border-b border-white/10">
-                <h2 className="text-xl font-bold text-white">Nova Partida</h2>
-                <button
-                  onClick={() => setShowAddMatchModal(false)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-white/60" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-white/80 mb-2 font-medium">Time da Casa</label>
-                  <input
-                    type="text"
-                    value={matchFormData.home_team_name}
-                    onChange={(e) => setMatchFormData({ ...matchFormData, home_team_name: e.target.value })}
-                    placeholder={userTeams.find(t => t.id === selectedTeamId)?.name || 'Meu Time'}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white/80 mb-2 font-medium">Time Visitante *</label>
-                  <input
-                    type="text"
-                    value={matchFormData.away_team_name}
-                    onChange={(e) => setMatchFormData({ ...matchFormData, away_team_name: e.target.value })}
-                    placeholder="Nome do adversário"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-white/80 mb-2 font-medium">Data *</label>
-                    <input
-                      type="date"
-                      value={matchFormData.match_date}
-                      onChange={(e) => setMatchFormData({ ...matchFormData, match_date: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-white/80 mb-2 font-medium">Horário *</label>
-                    <input
-                      type="time"
-                      value={matchFormData.match_time}
-                      onChange={(e) => setMatchFormData({ ...matchFormData, match_time: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-white/80 mb-2 font-medium">Local</label>
-                  <input
-                    type="text"
-                    value={matchFormData.location}
-                    onChange={(e) => setMatchFormData({ ...matchFormData, location: e.target.value })}
-                    placeholder="Ex: Campo do Bairro"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white/80 mb-2 font-medium">Status</label>
-                  <select
-                    value={matchFormData.status}
-                    onChange={(e) => setMatchFormData({ ...matchFormData, status: e.target.value as Match['status'] })}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-[#FF5A00] focus:outline-none"
-                  >
-                    <option value="scheduled" className="bg-[#1A1A1A]">Agendado</option>
-                    <option value="confirmed" className="bg-[#1A1A1A]">Confirmado</option>
-                    <option value="pending" className="bg-[#1A1A1A]">Pendente</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => setShowAddMatchModal(false)}
-                    className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-6 rounded-xl transition-all"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleAddMatch}
-                    disabled={!matchFormData.match_date || !matchFormData.match_time || savingMatch}
-                    className="flex-1 bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {savingMatch ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      'Adicionar'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-          </>
+        </>
         )}
       </main>
     </div>
