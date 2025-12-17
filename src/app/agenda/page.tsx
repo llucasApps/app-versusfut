@@ -278,7 +278,9 @@ export default function AgendaPage() {
 
   const formatDate = (dateString: string) => {
     if (!mounted) return '';
-    return new Date(dateString).toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    // Adiciona T12:00:00 para evitar problema de timezone (data interpretada como UTC)
+    const date = new Date(dateString + 'T12:00:00');
+    return date.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   };
 
   // Funções do calendário de configuração
