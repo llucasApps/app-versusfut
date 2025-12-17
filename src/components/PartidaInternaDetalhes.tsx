@@ -338,6 +338,7 @@ export default function PartidaInternaDetalhes({
   const handleEndMatch = async () => {
     if (!confirm('Deseja encerrar a pelada? Todas as estatísticas serão salvas.')) return;
     
+    // 1. Atualizar status da partida interna
     const { error } = await supabase
       .from('internal_matches')
       .update({ 
@@ -347,6 +348,22 @@ export default function PartidaInternaDetalhes({
       .eq('id', match.id);
     
     if (!error) {
+      // 2. Finalizar todos os jogos/confrontos que não foram finalizados
+      const pendingGames = games.filter(g => g.status !== 'completed');
+      if (pendingGames.length > 0) {
+        await supabase
+          .from('internal_match_games')
+          .update({ 
+            status: 'completed',
+            ended_at: new Date().toISOString()
+          })
+          .eq('internal_match_id', match.id)
+          .neq('status', 'completed');
+        
+        // Atualizar estado local dos jogos
+        setGames(games.map(g => ({ ...g, status: 'completed' as const })));
+      }
+      
       const updated = { ...currentMatch, status: 'completed' as const, ended_at: new Date().toISOString() };
       setCurrentMatch(updated);
       onUpdate(updated);
