@@ -3,7 +3,6 @@
 import Navigation from '@/components/Navigation';
 import { ArrowLeft, Edit, Users, Trophy, TrendingUp, Target, Calendar, MapPin, Clipboard, Image as ImageIcon, X, Eye, Trash2, Play, Plus, Search, Clock, Camera, Upload, Crown, Filter, UserPlus, User, FolderPlus, Loader2, Swords, History, Shuffle, Award } from 'lucide-react';
 import { Player, PhotoFolder, TeamPhoto, VideoFolder, VideoTutorial } from '@/lib/supabase';
-import PartidasInternas from '@/components/PartidasInternas';
 import HistoricoPartidas from '@/components/HistoricoPartidas';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -13,7 +12,7 @@ import { useViewMode } from '@/hooks/useViewMode';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, Team } from '@/lib/supabase';
 
-type Tab = 'resumo' | 'elenco' | 'partidas-internas' | 'historico' | 'taticas' | 'fotos' | 'videos';
+type Tab = 'resumo' | 'elenco' | 'historico' | 'taticas' | 'fotos' | 'videos';
 
 const categorias = ['Finalização', 'Tática', 'Preparação Física', 'Passe', 'Defesa', 'Drible'];
 
@@ -432,7 +431,7 @@ export default function TeamDetailPage() {
 
   // Adicionar novo jogador no Supabase
   const handleAddPlayer = async () => {
-    if (!team || !newPlayer.name || newPlayer.number <= 0) return;
+    if (!team || !newPlayer.name) return;
 
     // Primeiro, criar o jogador sem foto
     const { data, error } = await supabase
@@ -441,7 +440,7 @@ export default function TeamDetailPage() {
         team_id: team.id,
         name: newPlayer.name,
         position: newPlayer.position,
-        number: newPlayer.number,
+        number: newPlayer.number || null,
         age: newPlayer.age || null,
         available: newPlayer.available,
         phone: newPlayer.phone || null,
@@ -525,7 +524,7 @@ export default function TeamDetailPage() {
       .update({
         name: editPlayerData.name,
         position: editPlayerData.position,
-        number: editPlayerData.number,
+        number: editPlayerData.number || null,
         age: editPlayerData.age,
         available: editPlayerData.available,
         phone: editPlayerData.phone,
@@ -560,17 +559,35 @@ export default function TeamDetailPage() {
   // Jogadores do Supabase
   const allPlayers = customPlayers;
 
-  // Filtrar jogadores
-  const filteredPlayers = allPlayers.filter(player => {
-    const matchesSearch = player.name.toLowerCase().includes(playerSearchTerm.toLowerCase());
-    const matchesPosition = !filterPosition || player.position === filterPosition;
-    const matchesAvailability = 
-      filterAvailability === 'all' || 
-      (filterAvailability === 'available' && player.available) ||
-      (filterAvailability === 'unavailable' && !player.available);
-    
-    return matchesSearch && matchesPosition && matchesAvailability;
-  });
+  // Ordem das posições para ordenação do elenco
+  const positionOrder: Record<string, number> = {
+    'Goleiro': 1,
+    'Zagueiro': 2,
+    'Lateral': 3,
+    'Volante': 4,
+    'Meio-Campo': 5,
+    'Meia': 6,
+    'Ponta': 7,
+    'Atacante': 8,
+  };
+
+  // Filtrar e ordenar jogadores por posição
+  const filteredPlayers = allPlayers
+    .filter(player => {
+      const matchesSearch = player.name.toLowerCase().includes(playerSearchTerm.toLowerCase());
+      const matchesPosition = !filterPosition || player.position === filterPosition;
+      const matchesAvailability = 
+        filterAvailability === 'all' || 
+        (filterAvailability === 'available' && player.available) ||
+        (filterAvailability === 'unavailable' && !player.available);
+      
+      return matchesSearch && matchesPosition && matchesAvailability;
+    })
+    .sort((a, b) => {
+      const orderA = positionOrder[a.position] || 99;
+      const orderB = positionOrder[b.position] || 99;
+      return orderA - orderB;
+    });
 
   // Handler para seleção de arquivos (múltiplos)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1109,16 +1126,6 @@ export default function TeamDetailPage() {
             Elenco
           </button>
           <button
-            onClick={() => setActiveTab('partidas-internas')}
-            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
-              activeTab === 'partidas-internas'
-                ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
-                : 'text-white/60 hover:text-white'
-            }`}
-          >
-            Partidas Internas
-          </button>
-          <button
             onClick={() => setActiveTab('historico')}
             className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
               activeTab === 'historico'
@@ -1126,7 +1133,7 @@ export default function TeamDetailPage() {
                 : 'text-white/60 hover:text-white'
             }`}
           >
-            Histórico
+            Histórico de Partidas
           </button>
           <button
             onClick={() => setActiveTab('taticas')}
@@ -1565,16 +1572,7 @@ export default function TeamDetailPage() {
           </div>
         )}
 
-        {/* Partidas Internas */}
-        {activeTab === 'partidas-internas' && (
-          <PartidasInternas 
-            teamId={team.id} 
-            players={customPlayers} 
-            isOwnerMode={isOwnerMode} 
-          />
-        )}
-
-        {/* Histórico de Jogos */}
+        {/* Histórico de Partidas */}
         {activeTab === 'historico' && (
           <HistoricoPartidas 
             teamId={team.id} 
@@ -2519,7 +2517,7 @@ export default function TeamDetailPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-white/80 mb-2 font-medium">Número da Camisa *</label>
+                  <label className="block text-white/80 mb-2 font-medium">Número da Camisa</label>
                   <input
                     type="number"
                     min="1"
@@ -2637,7 +2635,7 @@ export default function TeamDetailPage() {
               </button>
               <button
                 onClick={handleAddPlayer}
-                disabled={!newPlayer.name || newPlayer.number <= 0}
+                disabled={!newPlayer.name}
                 className="flex-1 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Adicionar
