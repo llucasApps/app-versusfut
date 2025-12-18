@@ -49,6 +49,15 @@ export default function AgendaPage() {
   const [selectedInternalMatchData, setSelectedInternalMatchData] = useState<InternalMatch | null>(null);
   const [internalMatchPlayers, setInternalMatchPlayers] = useState<Player[]>([]);
 
+  // Estados para modal de partida oficial (contra adversário)
+  const [showOfficialMatchModal, setShowOfficialMatchModal] = useState(false);
+  const [selectedOfficialMatch, setSelectedOfficialMatch] = useState<AgendaMatch | null>(null);
+  const [officialMatchPlayers, setOfficialMatchPlayers] = useState<Player[]>([]);
+  const [officialScoreHome, setOfficialScoreHome] = useState('0');
+  const [officialScoreAway, setOfficialScoreAway] = useState('0');
+  const [officialStats, setOfficialStats] = useState<{[playerId: string]: {goals: number, assists: number}}>({});
+  const [savingOfficialMatch, setSavingOfficialMatch] = useState(false);
+
   // Carregar times do usuário
   useEffect(() => {
     const fetchUserTeams = async () => {
@@ -83,32 +92,33 @@ export default function AgendaPage() {
 
       const allMatches: AgendaMatch[] = [];
 
-      // 1. Carregar partidas contra adversários (match_invites com status accepted ou completed)
-      const { data: invitesData } = await supabase
-        .from('match_invites')
+      // 1. Carregar partidas oficiais (tabela matches)
+      // Buscar partidas onde o time é participante (home ou away)
+      const { data: matchesData } = await supabase
+        .from('matches')
         .select('*')
-        .or(`from_team_id.eq.${selectedTeamId},to_team_id.eq.${selectedTeamId}`)
-        .in('status', ['accepted', 'completed'])
-        .order('proposed_date', { ascending: false });
+        .or(`home_team_id.eq.${selectedTeamId},away_team_id.eq.${selectedTeamId},team_id.eq.${selectedTeamId}`)
+        .in('status', ['confirmed', 'completed'])
+        .order('match_date', { ascending: false });
 
-      if (invitesData) {
-        invitesData.forEach(invite => {
+      if (matchesData) {
+        matchesData.forEach(match => {
           allMatches.push({
-            id: invite.id,
-            team_id: invite.from_team_id,
-            home_team_id: invite.from_team_id,
-            away_team_id: invite.to_team_id,
-            home_team_name: invite.from_team_name || 'Time Casa',
-            away_team_name: invite.to_team_name || 'Time Visitante',
-            match_date: invite.proposed_date,
-            match_time: invite.proposed_time || '00:00',
-            location: invite.location || 'A definir',
-            status: invite.status === 'accepted' ? 'confirmed' : 'completed',
-            score_home: invite.score_home ?? null,
-            score_away: invite.score_away ?? null,
-            highlight_player_name: invite.highlight_player_name || null,
-            highlight_player_photo: invite.highlight_player_photo || null,
-            created_at: invite.created_at,
+            id: match.id,
+            team_id: match.team_id,
+            home_team_id: match.home_team_id,
+            away_team_id: match.away_team_id,
+            home_team_name: match.home_team_name || 'Time Casa',
+            away_team_name: match.away_team_name || 'Time Visitante',
+            match_date: match.match_date,
+            match_time: match.match_time || '00:00',
+            location: match.location || 'A definir',
+            status: match.status,
+            score_home: match.score_home ?? null,
+            score_away: match.score_away ?? null,
+            highlight_player_name: match.highlight_player_name || null,
+            highlight_player_photo: match.highlight_player_photo || null,
+            created_at: match.created_at,
             match_type: 'adversario',
           });
         });
@@ -269,6 +279,182 @@ export default function AgendaPage() {
       setSelectedInternalMatchData(internalMatchData);
       setInternalMatchPlayers(playersData || []);
       setShowInternalMatchDetails(true);
+    }
+  };
+
+  // Abrir modal de partida oficial (contra adversário)
+  const openOfficialMatchModal = async (match: AgendaMatch) => {
+    // Buscar jogadores do time do usuário
+    const { data: playersData } = await supabase
+      .from('players')
+      .select('*')
+      .eq('team_id', selectedTeamId)
+      .order('name');
+    
+    // Buscar estatísticas já salvas para esta partida
+    const { data: statsData } = await supabase
+      .from('match_stats')
+      .select('*')
+      .eq('match_id', match.id);
+    
+    // Converter estatísticas para o formato do estado
+    const statsMap: {[playerId: string]: {goals: number, assists: number}} = {};
+    if (statsData) {
+      statsData.forEach(stat => {
+        statsMap[stat.player_id] = { goals: stat.goals, assists: stat.assists };
+      });
+    }
+    
+    setSelectedOfficialMatch(match);
+    setOfficialMatchPlayers(playersData || []);
+    setOfficialScoreHome(match.score_home?.toString() || '0');
+    setOfficialScoreAway(match.score_away?.toString() || '0');
+    setOfficialStats(statsMap);
+    setShowOfficialMatchModal(true);
+  };
+
+  // Salvar resultado da partida oficial
+  const saveOfficialMatchResult = async () => {
+    if (!selectedOfficialMatch) return;
+    
+    setSavingOfficialMatch(true);
+    
+    try {
+      // Atualizar placar na tabela matches
+      const { error: updateError } = await supabase
+        .from('matches')
+        .update({
+          score_home: parseInt(officialScoreHome) || 0,
+          score_away: parseInt(officialScoreAway) || 0,
+          status: 'completed'
+        })
+        .eq('id', selectedOfficialMatch.id);
+      
+      if (updateError) {
+        console.error('Erro ao atualizar matches:', updateError);
+        throw updateError;
+      }
+      
+      // Deletar estatísticas antigas
+      await supabase
+        .from('match_stats')
+        .delete()
+        .eq('match_id', selectedOfficialMatch.id);
+      
+      // Inserir novas estatísticas
+      const statsToInsert = Object.entries(officialStats)
+        .filter(([, stats]) => stats.goals > 0 || stats.assists > 0)
+        .map(([playerId, stats]) => ({
+          match_id: selectedOfficialMatch.id,
+          player_id: playerId,
+          goals: stats.goals,
+          assists: stats.assists
+        }));
+      
+      if (statsToInsert.length > 0) {
+        await supabase
+          .from('match_stats')
+          .insert(statsToInsert);
+      }
+      
+      // Atualizar estatísticas dos jogadores na tabela players
+      for (const [playerId, stats] of Object.entries(officialStats)) {
+        if (stats.goals > 0 || stats.assists > 0) {
+          // Buscar estatísticas atuais do jogador
+          const { data: playerData } = await supabase
+            .from('players')
+            .select('goals, assists, matches')
+            .eq('id', playerId)
+            .single();
+          
+          if (playerData) {
+            await supabase
+              .from('players')
+              .update({
+                goals: (playerData.goals || 0) + stats.goals,
+                assists: (playerData.assists || 0) + stats.assists
+              })
+              .eq('id', playerId);
+          }
+        }
+      }
+      
+      // Fechar modal e recarregar partidas
+      setShowOfficialMatchModal(false);
+      setSelectedOfficialMatch(null);
+      setOfficialStats({});
+      
+      // Recarregar partidas
+      const allMatches: AgendaMatch[] = [];
+      
+      const { data: matchesData } = await supabase
+        .from('matches')
+        .select('*')
+        .or(`home_team_id.eq.${selectedTeamId},away_team_id.eq.${selectedTeamId},team_id.eq.${selectedTeamId}`)
+        .in('status', ['confirmed', 'completed'])
+        .order('match_date', { ascending: false });
+
+      if (matchesData) {
+        matchesData.forEach(match => {
+          allMatches.push({
+            id: match.id,
+            team_id: match.team_id,
+            home_team_id: match.home_team_id,
+            away_team_id: match.away_team_id,
+            home_team_name: match.home_team_name || 'Time Casa',
+            away_team_name: match.away_team_name || 'Time Visitante',
+            match_date: match.match_date,
+            match_time: match.match_time || '00:00',
+            location: match.location || 'A definir',
+            status: match.status,
+            score_home: match.score_home ?? null,
+            score_away: match.score_away ?? null,
+            highlight_player_name: match.highlight_player_name || null,
+            highlight_player_photo: match.highlight_player_photo || null,
+            created_at: match.created_at,
+            match_type: 'adversario',
+          });
+        });
+      }
+
+      const { data: internalData } = await supabase
+        .from('internal_matches')
+        .select('*')
+        .eq('team_id', selectedTeamId)
+        .in('status', ['scheduled', 'in_progress', 'completed'])
+        .order('match_date', { ascending: false });
+
+      if (internalData) {
+        internalData.forEach(internal => {
+          allMatches.push({
+            id: internal.id,
+            team_id: internal.team_id,
+            home_team_id: internal.team_id,
+            away_team_id: internal.team_id,
+            home_team_name: 'Time A',
+            away_team_name: 'Time B',
+            match_date: internal.match_date,
+            match_time: internal.match_time || '00:00',
+            location: internal.location || 'A definir',
+            status: internal.status === 'completed' ? 'completed' : internal.status === 'in_progress' ? 'in_progress' : 'confirmed',
+            score_home: internal.score_team_a ?? null,
+            score_away: internal.score_team_b ?? null,
+            highlight_player_name: null,
+            highlight_player_photo: null,
+            created_at: internal.created_at,
+            match_type: 'interna',
+          });
+        });
+      }
+
+      allMatches.sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime());
+      setMatches(allMatches);
+      
+    } catch (error) {
+      console.error('Erro ao salvar resultado:', error);
+      alert('Erro ao salvar resultado. Tente novamente.');
+    } finally {
+      setSavingOfficialMatch(false);
     }
   };
 
@@ -886,6 +1072,15 @@ export default function AgendaPage() {
                           {match.status === 'in_progress' ? 'Ver partida em andamento' : 'Iniciar Jogo'}
                         </button>
                       )}
+                      {match.match_type === 'adversario' && match.status !== 'completed' && (
+                        <button 
+                          onClick={() => openOfficialMatchModal(match)}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm flex items-center justify-center gap-2"
+                        >
+                          <Play className="w-4 h-4" />
+                          Iniciar Jogo
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1155,6 +1350,161 @@ export default function AgendaPage() {
               setInternalMatchPlayers([]);
             }}
           />
+        )}
+
+        {/* Modal: Partida Oficial (contra adversário) */}
+        {showOfficialMatchModal && selectedOfficialMatch && (
+          <div className="fixed inset-0 bg-black/95 z-50 overflow-y-auto">
+            <div className="min-h-screen p-4">
+              <div className="max-w-2xl mx-auto">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <button 
+                    onClick={() => {
+                      setShowOfficialMatchModal(false);
+                      setSelectedOfficialMatch(null);
+                      setOfficialStats({});
+                    }}
+                    className="flex items-center gap-2 text-white/60 hover:text-white transition-all"
+                  >
+                    <X className="w-5 h-5" />
+                    Fechar
+                  </button>
+                  
+                  <div className="px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 text-green-500">
+                    Jogo Oficial
+                  </div>
+                </div>
+
+                {/* Info da Partida */}
+                <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6 mb-6">
+                  <h1 className="text-xl font-bold text-white mb-4 text-center" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {selectedOfficialMatch.home_team_name} vs {selectedOfficialMatch.away_team_name}
+                  </h1>
+                  
+                  <div className="flex items-center justify-center gap-4 text-white/60 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {new Date(selectedOfficialMatch.match_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      {selectedOfficialMatch.match_time}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Placar */}
+                <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6 mb-6">
+                  <h2 className="text-lg font-bold text-white mb-4 text-center">Placar Final</h2>
+                  
+                  <div className="flex items-center justify-center gap-6">
+                    <div className="text-center">
+                      <div className="text-white/60 text-sm mb-2">{selectedOfficialMatch.home_team_name}</div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={officialScoreHome}
+                        onChange={(e) => setOfficialScoreHome(e.target.value)}
+                        className="w-20 h-16 text-center text-3xl font-bold bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-[#FF5A00]"
+                      />
+                    </div>
+                    
+                    <div className="text-white/40 text-2xl font-bold">×</div>
+                    
+                    <div className="text-center">
+                      <div className="text-white/60 text-sm mb-2">{selectedOfficialMatch.away_team_name}</div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={officialScoreAway}
+                        onChange={(e) => setOfficialScoreAway(e.target.value)}
+                        className="w-20 h-16 text-center text-3xl font-bold bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-[#FF5A00]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Estatísticas dos Jogadores */}
+                <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6 mb-6">
+                  <h2 className="text-lg font-bold text-white mb-4">Estatísticas do Seu Time</h2>
+                  <p className="text-white/60 text-sm mb-4">Informe gols e assistências de cada jogador</p>
+                  
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {officialMatchPlayers.map(player => (
+                      <div key={player.id} className="flex items-center gap-4 p-3 bg-white/5 rounded-xl">
+                        <div className="flex-1">
+                          <div className="text-white font-medium">{player.name}</div>
+                          <div className="text-white/40 text-xs">{player.position}</div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                          <div className="text-center">
+                            <div className="text-white/40 text-xs mb-1">Gols</div>
+                            <input
+                              type="number"
+                              min="0"
+                              value={officialStats[player.id]?.goals || 0}
+                              onChange={(e) => setOfficialStats({
+                                ...officialStats,
+                                [player.id]: {
+                                  goals: parseInt(e.target.value) || 0,
+                                  assists: officialStats[player.id]?.assists || 0
+                                }
+                              })}
+                              className="w-14 h-10 text-center bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#FF5A00]"
+                            />
+                          </div>
+                          
+                          <div className="text-center">
+                            <div className="text-white/40 text-xs mb-1">Assist.</div>
+                            <input
+                              type="number"
+                              min="0"
+                              value={officialStats[player.id]?.assists || 0}
+                              onChange={(e) => setOfficialStats({
+                                ...officialStats,
+                                [player.id]: {
+                                  goals: officialStats[player.id]?.goals || 0,
+                                  assists: parseInt(e.target.value) || 0
+                                }
+                              })}
+                              className="w-14 h-10 text-center bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#FF5A00]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {officialMatchPlayers.length === 0 && (
+                      <div className="text-center py-8 text-white/40">
+                        Nenhum jogador cadastrado no elenco
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botão Salvar */}
+                <button
+                  onClick={saveOfficialMatchResult}
+                  disabled={savingOfficialMatch}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  {savingOfficialMatch ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Trophy className="w-5 h-5" />
+                      Finalizar Partida e Salvar Estatísticas
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
