@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase, Player, InternalMatch, InternalMatchAttendance, InternalMatchTeam, InternalMatchTeamPlayer, InternalMatchGame, InternalMatchStats } from '@/lib/supabase';
-import { X, Plus, Users, UserPlus, Shuffle, Play, Square, Trophy, Target, Check, ChevronRight, Trash2, Edit, Clock, MapPin, Calendar, Award, Swords, ArrowLeft, Save, UserMinus, RefreshCw } from 'lucide-react';
+import { X, Plus, Users, UserPlus, Shuffle, Play, Square, Trophy, Target, Check, ChevronRight, Trash2, Edit, Clock, MapPin, Calendar, Award, Swords, ArrowLeft, Save, UserMinus, RefreshCw, DollarSign, Copy, CheckCircle } from 'lucide-react';
 
 interface PartidaInternaDetalhesProps {
   match: InternalMatch;
@@ -34,8 +34,16 @@ export default function PartidaInternaDetalhes({
 }: PartidaInternaDetalhesProps) {
   // Estados
   const [currentMatch, setCurrentMatch] = useState<InternalMatch>(match);
-  const [activeSection, setActiveSection] = useState<'lista' | 'times' | 'jogos'>('lista');
+  const [activeSection, setActiveSection] = useState<'lista' | 'rateio' | 'times' | 'jogos'>('lista');
   const [loading, setLoading] = useState(true);
+  
+  // Rateio
+  const [totalCost, setTotalCost] = useState<string>('');
+  const [pixKey, setPixKey] = useState<string>('');
+  const [payments, setPayments] = useState<{[attendanceId: string]: boolean}>({});
+  const [savingCost, setSavingCost] = useState(false);
+  const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
+  const [savedMessage, setSavedMessage] = useState(false);
   
   // Lista de presença
   const [attendance, setAttendance] = useState<AttendanceWithPlayer[]>([]);
@@ -122,6 +130,32 @@ export default function PartidaInternaDetalhes({
     
     if (statsData) {
       setSavedStats(statsData);
+    }
+    
+    // Buscar dados de rateio
+    const { data: costData } = await supabase
+      .from('internal_match_costs')
+      .select('*')
+      .eq('internal_match_id', match.id)
+      .single();
+    
+    if (costData) {
+      setTotalCost(costData.total_cost?.toString() || '');
+      setPixKey(costData.pix_key || '');
+    }
+    
+    // Buscar pagamentos
+    const { data: paymentsData } = await supabase
+      .from('internal_match_payments')
+      .select('*')
+      .eq('internal_match_id', match.id);
+    
+    if (paymentsData) {
+      const paymentsMap: {[attendanceId: string]: boolean} = {};
+      paymentsData.forEach(p => {
+        paymentsMap[p.attendance_id] = p.paid;
+      });
+      setPayments(paymentsMap);
     }
     
     setLoading(false);
@@ -444,6 +478,90 @@ export default function PartidaInternaDetalhes({
     setCurrentGame(null);
   };
 
+  // Salvar configuração de rateio
+  const handleSaveCost = async () => {
+    setSavingCost(true);
+    
+    // Verificar se já existe configuração
+    const { data: existingCost } = await supabase
+      .from('internal_match_costs')
+      .select('id')
+      .eq('internal_match_id', match.id)
+      .single();
+    
+    if (existingCost) {
+      // Atualizar
+      await supabase
+        .from('internal_match_costs')
+        .update({
+          total_cost: parseFloat(totalCost) || 0,
+          pix_key: pixKey
+        })
+        .eq('id', existingCost.id);
+    } else {
+      // Inserir
+      await supabase
+        .from('internal_match_costs')
+        .insert({
+          internal_match_id: match.id,
+          total_cost: parseFloat(totalCost) || 0,
+          pix_key: pixKey
+        });
+    }
+    
+    setSavingCost(false);
+    setSavedMessage(true);
+    setTimeout(() => setSavedMessage(false), 2000);
+  };
+
+  // Alternar status de pagamento
+  const handleTogglePayment = async (attendanceId: string) => {
+    const newPaidStatus = !payments[attendanceId];
+    
+    // Verificar se já existe registro de pagamento
+    const { data: existingPayment } = await supabase
+      .from('internal_match_payments')
+      .select('id')
+      .eq('internal_match_id', match.id)
+      .eq('attendance_id', attendanceId)
+      .single();
+    
+    const costPerPlayer = attendance.length > 0 ? (parseFloat(totalCost) || 0) / attendance.length : 0;
+    
+    if (existingPayment) {
+      await supabase
+        .from('internal_match_payments')
+        .update({
+          paid: newPaidStatus,
+          paid_at: newPaidStatus ? new Date().toISOString() : null,
+          amount: costPerPlayer
+        })
+        .eq('id', existingPayment.id);
+    } else {
+      await supabase
+        .from('internal_match_payments')
+        .insert({
+          internal_match_id: match.id,
+          attendance_id: attendanceId,
+          amount: costPerPlayer,
+          paid: newPaidStatus,
+          paid_at: newPaidStatus ? new Date().toISOString() : null
+        });
+    }
+    
+    setPayments({ ...payments, [attendanceId]: newPaidStatus });
+  };
+
+  // Copiar PIX para área de transferência
+  const handleCopyPix = (attendanceId: string) => {
+    const costPerPlayer = attendance.length > 0 ? (parseFloat(totalCost) || 0) / attendance.length : 0;
+    const pixText = `PIX: ${pixKey}\nValor: R$ ${costPerPlayer.toFixed(2)}`;
+    
+    navigator.clipboard.writeText(pixText);
+    setCopiedPixId(attendanceId);
+    setTimeout(() => setCopiedPixId(null), 2000);
+  };
+
   // Obter nome do time
   const getTeamName = (teamId: string) => {
     const team = teams.find(t => t.id === teamId);
@@ -564,6 +682,19 @@ export default function PartidaInternaDetalhes({
               </span>
             </button>
             <button
+              onClick={() => setActiveSection('rateio')}
+              className={`px-4 py-3 font-medium transition-all ${
+                activeSection === 'rateio'
+                  ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4" />
+                Rateio ({Object.values(payments).filter(p => p).length}/{attendance.length})
+              </span>
+            </button>
+            <button
               onClick={() => setActiveSection('times')}
               className={`px-4 py-3 font-medium transition-all ${
                 activeSection === 'times'
@@ -657,6 +788,164 @@ export default function PartidaInternaDetalhes({
                     <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>Nenhum jogador na lista</p>
                     <p className="text-sm">Adicione jogadores do elenco ou convidados</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Seção: Rateio */}
+          {activeSection === 'rateio' && (
+            <div className="space-y-4">
+              {/* Configuração do Rateio */}
+              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-[#FF6B00]" />
+                  Configuração do Rateio
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">Valor Total do Local (R$)</label>
+                    <input
+                      type="number"
+                      value={totalCost}
+                      onChange={(e) => setTotalCost(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FF6B00]"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-white/60 text-sm mb-2">Chave PIX</label>
+                    <input
+                      type="text"
+                      value={pixKey}
+                      onChange={(e) => setPixKey(e.target.value)}
+                      placeholder="CPF, E-mail, Telefone ou Chave Aleatória"
+                      className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FF6B00]"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-end gap-3">
+                  {savedMessage && (
+                    <span className="text-green-500 text-sm flex items-center gap-1">
+                      <CheckCircle className="w-4 h-4" />
+                      Salvo!
+                    </span>
+                  )}
+                  
+                  <button
+                    onClick={handleSaveCost}
+                    disabled={savingCost}
+                    className="flex items-center gap-2 bg-[#FF6B00] hover:bg-[#FF6B00]/80 disabled:opacity-50 text-white px-4 py-2 rounded-xl transition-all"
+                  >
+                    <Save className="w-4 h-4" />
+                    {savingCost ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Resumo do Rateio */}
+              {attendance.length > 0 && parseFloat(totalCost) > 0 && (
+                <div className="bg-gradient-to-br from-green-900/20 to-[#0D0D0D] border border-green-500/20 rounded-2xl p-6">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <p className="text-white/60 text-sm">Valor Total</p>
+                      <p className="text-2xl font-bold text-white">R$ {parseFloat(totalCost).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/60 text-sm">Jogadores</p>
+                      <p className="text-2xl font-bold text-white">{attendance.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/60 text-sm">Valor por Pessoa</p>
+                      <p className="text-2xl font-bold text-green-500">
+                        R$ {(parseFloat(totalCost) / attendance.length).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Lista de Pagamentos */}
+              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-white">Status de Pagamento</h3>
+                  <div className="text-sm text-white/60">
+                    <span className="text-green-500 font-bold">{Object.values(payments).filter(p => p).length}</span>
+                    /{attendance.length} pagos
+                  </div>
+                </div>
+                
+                {attendance.length > 0 ? (
+                  <div className="space-y-2">
+                    {attendance.map((att) => {
+                      const playerName = att.player?.name || att.guest_name || 'Jogador';
+                      const isPaid = payments[att.id] || false;
+                      const costPerPlayer = attendance.length > 0 ? (parseFloat(totalCost) || 0) / attendance.length : 0;
+                      
+                      return (
+                        <div 
+                          key={att.id}
+                          className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                            isPaid ? 'bg-green-500/10 border border-green-500/20' : 'bg-white/5 border border-white/10'
+                          }`}
+                        >
+                          {att.player?.foto ? (
+                            <img src={att.player.foto} alt="" className="w-10 h-10 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-[#FF6B00]/20 flex items-center justify-center text-[#FF6B00] font-bold">
+                              {playerName.charAt(0)}
+                            </div>
+                          )}
+                          
+                          <div className="flex-1">
+                            <p className="text-white font-medium">{playerName}</p>
+                            <p className="text-white/40 text-sm">
+                              R$ {costPerPlayer.toFixed(2)}
+                              {att.guest_name && ' • Convidado'}
+                            </p>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            {pixKey && (
+                              <button
+                                onClick={() => handleCopyPix(att.id)}
+                                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                                title="Copiar PIX"
+                              >
+                                {copiedPixId === att.id ? <CheckCircle className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+                              </button>
+                            )}
+                            
+                            <button
+                              onClick={() => handleTogglePayment(att.id)}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                                isPaid 
+                                  ? 'bg-green-500 text-white' 
+                                  : 'bg-white/10 text-white/60 hover:bg-white/20'
+                              }`}
+                            >
+                              {isPaid ? (
+                                <>
+                                  <CheckCircle className="w-4 h-4" />
+                                  Pago
+                                </>
+                              ) : (
+                                'Pendente'
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-white/40">
+                    <DollarSign className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>Adicione jogadores à lista primeiro</p>
                   </div>
                 )}
               </div>
