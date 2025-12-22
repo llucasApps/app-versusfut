@@ -667,55 +667,55 @@ export default function PartidaInternaDetalhes({
           </div>
 
           {/* Navegação por seções */}
-          <div className="flex gap-2 mb-6 border-b border-white/10">
+          <div className="flex gap-1 sm:gap-2 mb-6 border-b border-white/10 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setActiveSection('lista')}
-              className={`px-4 py-3 font-medium transition-all ${
+              className={`px-3 sm:px-4 py-3 font-medium transition-all whitespace-nowrap text-sm sm:text-base ${
                 activeSection === 'lista'
                   ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                   : 'text-white/60 hover:text-white'
               }`}
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 sm:gap-2">
                 <Users className="w-4 h-4" />
                 Lista ({attendance.length})
               </span>
             </button>
             <button
               onClick={() => setActiveSection('rateio')}
-              className={`px-4 py-3 font-medium transition-all ${
+              className={`px-3 sm:px-4 py-3 font-medium transition-all whitespace-nowrap text-sm sm:text-base ${
                 activeSection === 'rateio'
                   ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                   : 'text-white/60 hover:text-white'
               }`}
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 sm:gap-2">
                 <DollarSign className="w-4 h-4" />
-                Rateio ({Object.values(payments).filter(p => p).length}/{attendance.length})
+                <span className="hidden xs:inline">Rateio</span> ({Object.values(payments).filter(p => p).length}/{attendance.length})
               </span>
             </button>
             <button
               onClick={() => setActiveSection('times')}
-              className={`px-4 py-3 font-medium transition-all ${
+              className={`px-3 sm:px-4 py-3 font-medium transition-all whitespace-nowrap text-sm sm:text-base ${
                 activeSection === 'times'
                   ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                   : 'text-white/60 hover:text-white'
               }`}
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 sm:gap-2">
                 <Shuffle className="w-4 h-4" />
                 Times ({teams.length})
               </span>
             </button>
             <button
               onClick={() => setActiveSection('jogos')}
-              className={`px-4 py-3 font-medium transition-all ${
+              className={`px-3 sm:px-4 py-3 font-medium transition-all whitespace-nowrap text-sm sm:text-base ${
                 activeSection === 'jogos'
                   ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                   : 'text-white/60 hover:text-white'
               }`}
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 sm:gap-2">
                 <Swords className="w-4 h-4" />
                 Jogos ({games.length})
               </span>
@@ -849,19 +849,19 @@ export default function PartidaInternaDetalhes({
 
               {/* Resumo do Rateio */}
               {attendance.length > 0 && parseFloat(totalCost) > 0 && (
-                <div className="bg-gradient-to-br from-green-900/20 to-[#0D0D0D] border border-green-500/20 rounded-2xl p-6">
-                  <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-gradient-to-br from-green-900/20 to-[#0D0D0D] border border-green-500/20 rounded-2xl p-4 sm:p-6">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
                     <div>
-                      <p className="text-white/60 text-sm">Valor Total</p>
-                      <p className="text-2xl font-bold text-white">R$ {parseFloat(totalCost).toFixed(2)}</p>
+                      <p className="text-white/60 text-xs sm:text-sm">Valor Total</p>
+                      <p className="text-lg sm:text-2xl font-bold text-white">R$ {parseFloat(totalCost).toFixed(2)}</p>
                     </div>
                     <div>
-                      <p className="text-white/60 text-sm">Jogadores</p>
-                      <p className="text-2xl font-bold text-white">{attendance.length}</p>
+                      <p className="text-white/60 text-xs sm:text-sm">Jogadores</p>
+                      <p className="text-lg sm:text-2xl font-bold text-white">{attendance.length}</p>
                     </div>
                     <div>
-                      <p className="text-white/60 text-sm">Valor por Pessoa</p>
-                      <p className="text-2xl font-bold text-green-500">
+                      <p className="text-white/60 text-xs sm:text-sm">Por Pessoa</p>
+                      <p className="text-lg sm:text-2xl font-bold text-green-500">
                         R$ {(parseFloat(totalCost) / attendance.length).toFixed(2)}
                       </p>
                     </div>
@@ -870,9 +870,9 @@ export default function PartidaInternaDetalhes({
               )}
 
               {/* Lista de Pagamentos */}
-              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6">
+              <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-white">Status de Pagamento</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-white">Status de Pagamento</h3>
                   <div className="text-sm text-white/60">
                     <span className="text-green-500 font-bold">{Object.values(payments).filter(p => p).length}</span>
                     /{attendance.length} pagos
@@ -909,20 +909,20 @@ export default function PartidaInternaDetalhes({
                             </p>
                           </div>
                           
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 sm:gap-2">
                             {pixKey && (
                               <button
                                 onClick={() => handleCopyPix(att.id)}
-                                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                                className="p-1.5 sm:p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
                                 title="Copiar PIX"
                               >
-                                {copiedPixId === att.id ? <CheckCircle className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+                                {copiedPixId === att.id ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" /> : <Copy className="w-4 h-4 sm:w-5 sm:h-5" />}
                               </button>
                             )}
                             
                             <button
                               onClick={() => handleTogglePayment(att.id)}
-                              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all ${
                                 isPaid 
                                   ? 'bg-green-500 text-white' 
                                   : 'bg-white/10 text-white/60 hover:bg-white/20'
@@ -930,7 +930,7 @@ export default function PartidaInternaDetalhes({
                             >
                               {isPaid ? (
                                 <>
-                                  <CheckCircle className="w-4 h-4" />
+                                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                                   Pago
                                 </>
                               ) : (

@@ -14,6 +14,20 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "VersusFut - Gestão de Times de Futebol",
   description: "Plataforma premium para gestão de times de futebol",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "VersusFut",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: "cover",
+  },
+  themeColor: "#FF6B00",
 };
 
 export default function RootLayout({
@@ -28,6 +42,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Italiana&display=swap" rel="stylesheet" />
+        <link rel="apple-touch-icon" href="/icons/android-launchericon-192-192.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body
         className={`${inter.variable} antialiased bg-[#0D0D0D] text-white min-h-screen`}

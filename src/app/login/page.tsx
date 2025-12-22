@@ -111,10 +111,10 @@ export default function LoginPage() {
         <div className="bg-gradient-to-br from-[#1A1A1A]/95 to-[#0D0D0D]/95 backdrop-blur-xl border border-[#FF6B00]/20 rounded-3xl p-8 shadow-[0_0_60px_rgba(255,107,0,0.1)]">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#FF6B00] to-[#FF8C00] rounded-2xl mb-4 shadow-[0_0_30px_rgba(255,107,0,0.3)]">
-              <span className="text-4xl">⚽</span>
+            <div className="inline-flex items-center justify-center w-64 h-64">
+              <img src="/icons/logo2.png" alt="VersusFut" className="w-full h-full object-contain" />
             </div>
-            <h1 className="text-3xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <h1 className="text-3xl font-bold text-white -mt-12" style={{ fontFamily: 'Poppins, sans-serif' }}>
               Versus<span className="text-[#FF6B00]">Fut</span>
             </h1>
             <p className="text-white/60 mt-2">Entre na sua conta</p>
