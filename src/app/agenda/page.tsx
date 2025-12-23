@@ -2,6 +2,7 @@
 
 import Navigation from '@/components/Navigation';
 import PartidaInternaDetalhes from '@/components/PartidaInternaDetalhes';
+import Link from 'next/link';
 import { supabase, Match, Team, TeamAvailableDate, TeamAgendaSettings, InternalMatch, Player } from '@/lib/supabase';
 import { Calendar, Clock, MapPin, Filter, CheckCircle, AlertCircle, Settings, ChevronLeft, ChevronRight, Save, MessageSquare, X, User, Upload, Trophy, Loader2, Play } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -723,9 +724,9 @@ export default function AgendaPage() {
             <Calendar className="w-20 h-20 text-white/20 mx-auto mb-6" />
             <h3 className="text-2xl font-bold text-white mb-4">Nenhum time encontrado</h3>
             <p className="text-white/60 mb-6">Crie um time primeiro para gerenciar sua agenda.</p>
-            <a href="/times" className="inline-block bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all">
+            <Link href="/times" className="inline-block bg-[#FF5A00] hover:bg-[#FF5A00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all">
               Criar Time
-            </a>
+            </Link>
           </div>
         ) : (
           <>

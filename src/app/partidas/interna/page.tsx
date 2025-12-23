@@ -41,9 +41,10 @@ export default function PartidaInternaPage() {
       }
       
       if (memberTeams) {
-        memberTeams.forEach((mt: any) => {
-          if (mt.teams && !allTeams.find(t => t.id === mt.teams.id)) {
-            allTeams.push(mt.teams);
+        memberTeams.forEach((mt) => {
+          const team = mt.teams as unknown as Team;
+          if (team && !allTeams.find(t => t.id === team.id)) {
+            allTeams.push(team);
           }
         });
       }

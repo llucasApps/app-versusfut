@@ -1,6 +1,7 @@
 'use client';
 
 import Navigation from '@/components/Navigation';
+import Link from 'next/link';
 import { supabase, Team, MatchInvite, TeamAvailableDate } from '@/lib/supabase';
 import { Search, User, Phone, Tag, Calendar, X, ChevronLeft, ChevronRight, Clock, MessageSquare, Send, CheckCircle, Users, Image as ImageIcon, MapPin, Filter, RotateCcw, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -403,7 +404,7 @@ export default function BuscarPage() {
               <Calendar className="w-5 h-5 text-yellow-500" />
               <p className="text-yellow-500 text-sm">
                 Você precisa criar um time primeiro para enviar convites.{' '}
-                <a href="/times" className="underline font-bold">Criar time</a>
+                <Link href="/times" className="underline font-bold">Criar time</Link>
               </p>
             </div>
           )}
