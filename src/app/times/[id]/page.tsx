@@ -1016,9 +1016,9 @@ export default function TeamDetailPage() {
         </Link>
 
         {/* Team Header */}
-        <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6 sm:p-8 mb-8">
+        <div className="bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border border-[#FF6B00]/20 rounded-2xl p-6 sm:p-8 mb-8 relative">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-6">
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 sm:gap-6 flex-1">
               {/* Logo do Time */}
               {(() => {
                 const logo = teamData?.logo || team.logo;
@@ -1026,7 +1026,7 @@ export default function TeamDetailPage() {
                 
                 if (isImageUrl) {
                   return (
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
+                    <div className="w-16 h-16 sm:w-24 sm:h-24 flex-shrink-0 rounded-2xl overflow-hidden border-4 border-[#FF6B00]/30 shadow-[0_0_20px_rgba(255,107,0,0.2)]">
                       <img 
                         src={logo} 
                         alt="Logo do time" 
@@ -1035,19 +1035,19 @@ export default function TeamDetailPage() {
                     </div>
                   );
                 }
-                return <div className="text-6xl sm:text-7xl">{logo || '⚽'}</div>;
+                return <div className="text-5xl sm:text-7xl flex-shrink-0">{logo || '⚽'}</div>;
               })()}
-              <div>
-                <div className="flex items-center gap-3 flex-wrap mb-2">
-                  <h1 className="text-3xl sm:text-4xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    {teamData?.name || team.name}
-                  </h1>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {teamData?.name || team.name}
+                </h1>
+                <div className="flex items-center gap-2 flex-wrap mb-2">
                   {(teamData?.category || team.category) && (
-                    <span className="bg-[#FF6B00]/20 text-[#FF6B00] text-xs px-3 py-1 rounded-full font-medium">
+                    <span className="bg-[#FF6B00]/20 text-[#FF6B00] text-xs px-2 sm:px-3 py-1 rounded-full font-medium">
                       {teamData?.category || team.category}
                     </span>
                   )}
-                  <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                  <span className={`text-xs px-2 sm:px-3 py-1 rounded-full font-medium ${
                     (teamData?.availableForMatch !== undefined ? teamData.availableForMatch : team.available_for_match !== false)
                       ? 'bg-green-500/20 text-green-400' 
                       : 'bg-red-500/20 text-red-400'
@@ -1055,16 +1055,16 @@ export default function TeamDetailPage() {
                     {(teamData?.availableForMatch !== undefined ? teamData.availableForMatch : team.available_for_match !== false) ? 'Disponível' : 'Indisponível'}
                   </span>
                 </div>
-                <p className="text-white/60 text-lg">{teamData?.description || team.description}</p>
-                <div className="flex flex-wrap gap-4 mt-2">
+                <p className="text-white/60 text-sm sm:text-lg line-clamp-2">{teamData?.description || team.description}</p>
+                <div className="flex flex-wrap gap-2 sm:gap-4 mt-2">
                   {(teamData?.president || team.president) && (
-                    <p className="text-[#FF6B00] text-sm flex items-center gap-2">
-                      <Users className="w-4 h-4" />
+                    <p className="text-[#FF6B00] text-xs sm:text-sm flex items-center gap-1 sm:gap-2">
+                      <Users className="w-3 h-3 sm:w-4 sm:h-4" />
                       Presidente - {teamData?.president || team.president}
                     </p>
                   )}
                   {(teamData?.phone || team.phone) && (
-                    <p className="text-white/60 text-sm flex items-center gap-2">
+                    <p className="text-white/60 text-xs sm:text-sm flex items-center gap-1 sm:gap-2">
                       📞 {teamData?.phone || team.phone}
                     </p>
                   )}
@@ -1073,9 +1073,9 @@ export default function TeamDetailPage() {
             </div>
             
             {isOwnerMode && (
-              <Link href={`/times/${team.id}/editar`} className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2">
+              <Link href={`/times/${team.id}/editar`} className="absolute top-4 right-4 sm:relative sm:top-auto sm:right-auto bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold p-2 sm:py-3 sm:px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2">
                 <Edit className="w-5 h-5" />
-                Editar Time
+                <span className="hidden sm:inline">Editar Time</span>
               </Link>
             )}
           </div>
@@ -1104,10 +1104,10 @@ export default function TeamDetailPage() {
         </div>
 
         {/* Tabs Navigation */}
-        <div className="flex gap-2 mb-8 border-b border-white/10 overflow-x-auto">
+        <div className="flex gap-1 sm:gap-2 mb-8 border-b border-white/10 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
           <button
             onClick={() => setActiveTab('resumo')}
-            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium transition-all whitespace-nowrap ${
               activeTab === 'resumo'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
@@ -1117,7 +1117,7 @@ export default function TeamDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('elenco')}
-            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium transition-all whitespace-nowrap ${
               activeTab === 'elenco'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
@@ -1127,17 +1127,17 @@ export default function TeamDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('historico')}
-            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium transition-all whitespace-nowrap ${
               activeTab === 'historico'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
             }`}
           >
-            Histórico de Partidas
+            Histórico
           </button>
           <button
             onClick={() => setActiveTab('taticas')}
-            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium transition-all whitespace-nowrap ${
               activeTab === 'taticas'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
@@ -1147,7 +1147,7 @@ export default function TeamDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('fotos')}
-            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium transition-all whitespace-nowrap ${
               activeTab === 'fotos'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
@@ -1157,13 +1157,13 @@ export default function TeamDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('videos')}
-            className={`px-6 py-3 font-medium transition-all whitespace-nowrap ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium transition-all whitespace-nowrap ${
               activeTab === 'videos'
                 ? 'text-[#FF6B00] border-b-2 border-[#FF6B00]'
                 : 'text-white/60 hover:text-white'
             }`}
           >
-            Vídeos Tutoriais
+            Vídeos
           </button>
         </div>
 
