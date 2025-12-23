@@ -177,6 +177,7 @@ export default function TeamDetailPage() {
   const [playerSearchTerm, setPlayerSearchTerm] = useState('');
   const [filterPosition, setFilterPosition] = useState('');
   const [filterAvailability, setFilterAvailability] = useState<'all' | 'available' | 'unavailable'>('all');
+  const [showFilters, setShowFilters] = useState(false);
   const [customPlayers, setCustomPlayers] = useState<Player[]>([]);
   const [newPlayer, setNewPlayer] = useState({
     name: '',
@@ -1073,7 +1074,7 @@ export default function TeamDetailPage() {
             </div>
             
             {isOwnerMode && (
-              <Link href={`/times/${team.id}/editar`} className="absolute top-4 right-4 sm:relative sm:top-auto sm:right-auto bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold p-2 sm:py-3 sm:px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center gap-2">
+              <Link href={`/times/${team.id}/editar`} className="absolute top-4 right-4 sm:relative sm:top-auto sm:right-auto bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold w-10 h-10 sm:w-auto sm:h-auto sm:py-3 sm:px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] flex items-center justify-center sm:gap-2">
                 <Edit className="w-5 h-5" />
                 <span className="hidden sm:inline">Editar Time</span>
               </Link>
@@ -1454,8 +1455,22 @@ export default function TeamDetailPage() {
                 )}
               </div>
 
-              {/* Filtros */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              {/* Botão Filtrar no Mobile */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="sm:hidden flex items-center justify-center gap-2 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white mb-4 transition-all hover:border-[#FF6B00]"
+              >
+                <Filter className="w-5 h-5" />
+                Filtrar
+                {(playerSearchTerm || filterPosition || filterAvailability !== 'all') && (
+                  <span className="bg-[#FF6B00] text-white text-xs px-2 py-0.5 rounded-full">
+                    {[playerSearchTerm, filterPosition, filterAvailability !== 'all'].filter(Boolean).length}
+                  </span>
+                )}
+              </button>
+
+              {/* Filtros - visíveis sempre no desktop, toggle no mobile */}
+              <div className={`${showFilters ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row gap-4 mb-6`}>
                 {/* Busca por nome */}
                 <div className="flex-1 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
