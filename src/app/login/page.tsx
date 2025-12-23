@@ -119,6 +119,7 @@ export default function LoginPage() {
             </h1>
             <p className="text-white/60 mt-2">Entre na sua conta</p>
           </div>
+          
 
           {/* Formulário */}
           <form onSubmit={handleLogin} className="space-y-5">
